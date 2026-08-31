@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+  xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url>
+    <loc>/lambdatech-networking/docs/</loc>
+  </url><url>
+    <loc>/lambdatech-networking/docs/getting-started/</loc>
+  </url><url>
+    <loc>/lambdatech-networking/docs/core-concepts/</loc>
+  </url><url>
+    <loc>/lambdatech-networking/docs/event-loop/</loc>
+  </url><url>
+    <loc>/lambdatech-networking/docs/tcp-and-udp/</loc>
+  </url><url>
+    <loc>/lambdatech-networking/docs/dns/</loc>
+  </url><url>
+    <loc>/lambdatech-networking/docs/wire-format/</loc>
+  </url><url>
+    <loc>/lambdatech-networking/docs/contributing/</loc>
+  </url><url>
+    <loc>/lambdatech-networking/docs/license/</loc>
+  </url><url>
+    <loc>/lambdatech-networking/</loc>
+  </url>
+</urlset>

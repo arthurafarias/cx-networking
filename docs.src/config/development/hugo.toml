@@ -1,0 +1,26 @@
+# Development environment — PUBLIC + DEVELOPMENT documentation.
+#
+# Invoke with:  hugo -e development
+#
+# Merges over config/_default. Only the pieces that differ are repeated here:
+#   - a second content mount for ./development (specifications and other internal docs)
+#   - a separate publishDir so the full build never overwrites the public ../docs
+#
+# Hugo replaces (does not append) slice values on merge, so every mount must be
+# listed again, not just the new one.
+
+publishDir = "../docs-dev"
+
+[module]
+  [[module.mounts]]
+    source = "public"
+    target = "content"
+  [[module.mounts]]
+    source = "development"
+    target = "content"
+  [[module.mounts]]
+    source = "layouts"
+    target = "layouts"
+  [[module.mounts]]
+    source = "static"
+    target = "static"

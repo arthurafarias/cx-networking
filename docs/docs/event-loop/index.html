@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The Event Loop · LambdaTech Networking</title>
+  <meta name="description" content="LambdaTech Networking — a header-only, zero-dependency asynchronous networking toolkit for C&#43;&#43;23: a poll(2) event loop, Node.js-inspired TCP/UDP sockets, and a DNS protocol layer, all driven by the cxflow async runtime.">
+  <link rel="stylesheet" href="/lambdatech-networking/css/style.css">
+  <link rel="stylesheet" href="/lambdatech-networking/css/chroma.css">
+</head>
+<body>
+  <header class="site-header">
+  <a class="brand" href="/">LambdaTech Networking</a>
+  <nav class="top-nav">
+    <a href="/lambdatech-networking/docs/">Docs</a>
+    
+    
+    <a href="/lambdatech-networking/coverage/">Coverage</a>
+    <a href="https://github.com/arthurafarias/lambdatech-networking">GitHub</a>
+  </nav>
+</header>
+
+  <div class="layout">
+    
+
+
+
+<nav class="sidebar">
+  <ul>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/getting-started/">Getting Started</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/core-concepts/">Core Concepts</a>
+    </li>
+    
+    <li class="active">
+      <a href="/lambdatech-networking/docs/event-loop/">The Event Loop</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/tcp-and-udp/">TCP &amp; UDP</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/dns/">DNS</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/wire-format/">DNS Wire Format</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/contributing/">Contributing</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/license/">License</a>
+    </li>
+    
+  </ul>
+</nav>
+
+
+    <main class="content">
+      
+<article class="prose">
+  <h1>The Event Loop</h1>
+  <p><code>core::event_loop</code> (<a href="../../../../include/lambdatech/networking/core/event_loop.hpp">core/event_loop.hpp</a>)
+is the single-threaded reactor every socket runs on. It is one <code>core::task</code>
+(a dedicated thread) driving one <code>poll(2)</code> cycle.</p>
+<h2 id="one-cycle">One cycle</h2>
+<pre tabindex="0"><code>poll(watched fds + wake eventfd, next timer deadline)
+  │
+  ├─ drain the wake eventfd
+  ├─ run every defer()&#39;d function            (FIFO)
+  ├─ fire every timer whose deadline passed
+  └─ for each ready fd: invoke its callback  (revents)
+</code></pre><p>The wake <code>eventfd</code> is written by <code>watch/modify/unwatch/defer/set_timeout</code> from
+any thread, so a change made off the loop takes effect on the very next cycle
+instead of waiting out the current <code>poll()</code>.</p>
+<h2 id="api">API</h2>
+<table>
+	<thead>
+			<tr>
+					<th>Method</th>
+					<th>Purpose</th>
+					<th>Node analogue</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>watch(fd, events, cb)</code></td>
+					<td>register/replace an fd&rsquo;s interest + callback</td>
+					<td>—</td>
+			</tr>
+			<tr>
+					<td><code>modify(fd, events)</code></td>
+					<td>change an fd&rsquo;s <code>POLLIN</code>/<code>POLLOUT</code> interest</td>
+					<td>—</td>
+			</tr>
+			<tr>
+					<td><code>unwatch(fd)</code></td>
+					<td>stop watching an fd</td>
+					<td>—</td>
+			</tr>
+			<tr>
+					<td><code>defer(fn)</code></td>
+					<td>run <code>fn</code> on the loop thread ASAP</td>
+					<td><code>process.nextTick</code></td>
+			</tr>
+			<tr>
+					<td><code>set_timeout(delay, fn)</code> → <code>timer_id</code></td>
+					<td>run <code>fn</code> after <code>delay</code></td>
+					<td><code>setTimeout</code></td>
+			</tr>
+			<tr>
+					<td><code>clear_timeout(id)</code></td>
+					<td>cancel a pending timer</td>
+					<td><code>clearTimeout</code></td>
+			</tr>
+			<tr>
+					<td><code>start()</code></td>
+					<td>run the loop on its own thread (idempotent)</td>
+					<td>—</td>
+			</tr>
+			<tr>
+					<td><code>run()</code></td>
+					<td>block the caller until <code>stop()</code></td>
+					<td><code>process</code> staying alive</td>
+			</tr>
+			<tr>
+					<td><code>stop()</code></td>
+					<td>stop the loop and join its thread</td>
+					<td>—</td>
+			</tr>
+	</tbody>
+</table>
+<h2 id="threading-contract">Threading contract</h2>
+<p>Callbacks and event listeners <strong>only ever run on the loop thread</strong>. Socket
+methods (<code>connect</code>, <code>write</code>, <code>send</code>, <code>close</code>, …) are safe to call from other
+threads — they take a short internal lock and wake the loop — but the cleanest
+pattern mirrors Node: do everything from inside listeners, and marshal work in
+from other threads with <code>defer()</code>.</p>
+<p>Blocking calls (<code>getaddrinfo</code>, file I/O) must not run on the loop thread.
+<code>tcp::client::connect</code> and <code>udp::peer::send</code> already push name resolution onto
+<code>core::thread_pool</code> and hand the result back via <code>defer()</code>.</p>
+
+</article>
+
+    </main>
+  </div>
+  <footer class="site-footer">
+  <p>&copy; 2026 Arthur de Araújo Farias. All rights reserved.</p>
+</footer>
+
+</body>
+</html>

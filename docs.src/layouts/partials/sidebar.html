@@ -1,0 +1,34 @@
+{{ $docsSection := site.GetPage "/docs" }}
+{{ $specsSection := site.GetPage "/specifications" }}
+
+{{ if and $docsSection (eq $.Page.Section "docs") }}
+<nav class="sidebar">
+  <ul>
+    {{ range $docsSection.Pages.ByWeight }}
+    <li{{ if eq . $.Page }} class="active"{{ end }}>
+      <a href="{{ .RelPermalink }}">{{ .Title }}</a>
+    </li>
+    {{ end }}
+  </ul>
+</nav>
+{{ else if and $specsSection (eq $.Page.Section "specifications") }}
+<nav class="sidebar">
+  <ul>
+    {{ range $specsSection.Pages.ByWeight }}
+    {{ $isCurrentOrAncestor := or (eq . $.Page) (in $.Page.Ancestors .) }}
+    <li{{ if eq . $.Page }} class="active"{{ end }}>
+      <a href="{{ .RelPermalink }}">{{ .Title }}</a>
+    </li>
+    {{ if $isCurrentOrAncestor }}
+    <ul class="sidebar-sub">
+      {{ range .Pages.ByWeight }}
+      <li{{ if eq . $.Page }} class="active"{{ end }}>
+        <a href="{{ .RelPermalink }}">{{ .Title }}</a>
+      </li>
+      {{ end }}
+    </ul>
+    {{ end }}
+    {{ end }}
+  </ul>
+</nav>
+{{ end }}

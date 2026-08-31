@@ -1,0 +1,17 @@
+.cache
+.claude
+build
+build-test
+database.db
+log*txt
+*.gcno*
+*.gcda*
+__pycache__
+benchmarks/results/*
+!benchmarks/results/.gitkeep
+
+# Hugo
+docs.src/.hugo_build.lock
+docs.src/resources/
+docs.src/public/.hugo_build.lock
+/docs-dev/

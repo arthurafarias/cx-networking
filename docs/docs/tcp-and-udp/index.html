@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TCP &amp; UDP · LambdaTech Networking</title>
+  <meta name="description" content="LambdaTech Networking — a header-only, zero-dependency asynchronous networking toolkit for C&#43;&#43;23: a poll(2) event loop, Node.js-inspired TCP/UDP sockets, and a DNS protocol layer, all driven by the cxflow async runtime.">
+  <link rel="stylesheet" href="/lambdatech-networking/css/style.css">
+  <link rel="stylesheet" href="/lambdatech-networking/css/chroma.css">
+</head>
+<body>
+  <header class="site-header">
+  <a class="brand" href="/">LambdaTech Networking</a>
+  <nav class="top-nav">
+    <a href="/lambdatech-networking/docs/">Docs</a>
+    
+    
+    <a href="/lambdatech-networking/coverage/">Coverage</a>
+    <a href="https://github.com/arthurafarias/lambdatech-networking">GitHub</a>
+  </nav>
+</header>
+
+  <div class="layout">
+    
+
+
+
+<nav class="sidebar">
+  <ul>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/getting-started/">Getting Started</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/core-concepts/">Core Concepts</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/event-loop/">The Event Loop</a>
+    </li>
+    
+    <li class="active">
+      <a href="/lambdatech-networking/docs/tcp-and-udp/">TCP &amp; UDP</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/dns/">DNS</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/wire-format/">DNS Wire Format</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/contributing/">Contributing</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/license/">License</a>
+    </li>
+    
+  </ul>
+</nav>
+
+
+    <main class="content">
+      
+<article class="prose">
+  <h1>TCP &amp; UDP</h1>
+  <p>Both transports mirror the Node.js <code>net</code> and <code>dgram</code> surfaces, adapted to
+C++: events are <code>on_&lt;name&gt;()</code> accessors returning a <code>core::event&lt;...&gt;</code>, and
+objects are always held through <code>std::shared_ptr</code> (use the <code>create()</code> factory
+or take one from an event).</p>
+<h2 id="protocoltcpserver---netserver"><code>protocol::tcp::server</code>  — <code>net.Server</code></h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c++" data-lang="c++"><span class="line"><span class="cl"><span class="k">auto</span> <span class="n">server</span> <span class="o">=</span> <span class="n">tcp</span><span class="o">::</span><span class="n">server</span><span class="o">::</span><span class="n">create</span><span class="p">(</span><span class="n">loop</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="n">server</span><span class="o">-&gt;</span><span class="n">on_connect</span><span class="p">()</span> <span class="o">+=</span> <span class="p">[](</span><span class="k">const</span> <span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">tcp</span><span class="o">::</span><span class="n">client</span><span class="o">&gt;</span> <span class="o">&amp;</span><span class="n">conn</span><span class="p">)</span> <span class="p">{</span> <span class="cm">/* ... */</span> <span class="p">};</span>
+</span></span><span class="line"><span class="cl"><span class="n">server</span><span class="o">-&gt;</span><span class="n">on_listening</span><span class="p">()</span> <span class="o">+=</span> <span class="p">[</span><span class="o">&amp;</span><span class="p">]</span> <span class="p">{</span> <span class="cm">/* server-&gt;address().port is now known */</span> <span class="p">};</span>
+</span></span><span class="line"><span class="cl"><span class="n">server</span><span class="o">-&gt;</span><span class="n">listen</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s">&#34;127.0.0.1&#34;</span><span class="p">);</span>   <span class="c1">// port 0 -&gt; ephemeral
+</span></span></span></code></pre></div><table>
+	<thead>
+			<tr>
+					<th>Event</th>
+					<th>Args</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>listening</code></td>
+					<td>—</td>
+			</tr>
+			<tr>
+					<td><code>connect</code></td>
+					<td><code>const std::shared_ptr&lt;tcp::client&gt; &amp;</code></td>
+			</tr>
+			<tr>
+					<td><code>error</code></td>
+					<td><code>const std::string &amp;</code></td>
+			</tr>
+			<tr>
+					<td><code>close</code></td>
+					<td>—</td>
+			</tr>
+	</tbody>
+</table>
+<p>The server keeps each accepted <code>client</code> alive until it emits <code>close</code>.</p>
+<h2 id="protocoltcpclient---netsocket"><code>protocol::tcp::client</code>  — <code>net.Socket</code></h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c++" data-lang="c++"><span class="line"><span class="cl"><span class="k">auto</span> <span class="n">client</span> <span class="o">=</span> <span class="n">tcp</span><span class="o">::</span><span class="n">client</span><span class="o">::</span><span class="n">create</span><span class="p">(</span><span class="n">loop</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="n">client</span><span class="o">-&gt;</span><span class="n">on_connect</span><span class="p">()</span> <span class="o">+=</span> <span class="p">[</span><span class="o">&amp;</span><span class="p">]</span> <span class="p">{</span> <span class="n">client</span><span class="o">-&gt;</span><span class="n">write</span><span class="p">(</span><span class="n">core</span><span class="o">::</span><span class="n">make_buffer</span><span class="p">(</span><span class="s">&#34;GET / HTTP/1.0</span><span class="se">\r\n\r\n</span><span class="s">&#34;</span><span class="p">));</span> <span class="p">};</span>
+</span></span><span class="line"><span class="cl"><span class="n">client</span><span class="o">-&gt;</span><span class="n">on_data</span><span class="p">()</span> <span class="o">+=</span> <span class="p">[](</span><span class="k">const</span> <span class="n">core</span><span class="o">::</span><span class="n">buffer</span> <span class="o">&amp;</span><span class="n">chunk</span><span class="p">)</span> <span class="p">{</span> <span class="cm">/* ... */</span> <span class="p">};</span>
+</span></span><span class="line"><span class="cl"><span class="n">client</span><span class="o">-&gt;</span><span class="n">on_end</span><span class="p">()</span> <span class="o">+=</span> <span class="p">[]</span> <span class="p">{</span> <span class="cm">/* peer sent FIN */</span> <span class="p">};</span>
+</span></span><span class="line"><span class="cl"><span class="n">client</span><span class="o">-&gt;</span><span class="n">connect</span><span class="p">(</span><span class="mi">80</span><span class="p">,</span> <span class="s">&#34;example.com&#34;</span><span class="p">);</span>
+</span></span></code></pre></div><table>
+	<thead>
+			<tr>
+					<th>Method</th>
+					<th>Notes</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>connect(port, host)</code></td>
+					<td>resolves <code>host</code> off the loop, then connects</td>
+			</tr>
+			<tr>
+					<td><code>write(bytes)</code></td>
+					<td>returns <code>false</code> if the data had to be buffered — wait for <code>drain</code></td>
+			</tr>
+			<tr>
+					<td><code>end()</code></td>
+					<td>half-close once the write buffer flushes</td>
+			</tr>
+			<tr>
+					<td><code>destroy()</code></td>
+					<td>close immediately</td>
+			</tr>
+	</tbody>
+</table>
+<p>Events: <code>connect</code>, <code>data</code> (<code>core::buffer</code>), <code>drain</code>, <code>end</code>, <code>error</code>
+(<code>std::string</code>), <code>close</code>.</p>
+<h2 id="protocoludppeer---dgramsocket"><code>protocol::udp::peer</code>  — <code>dgram.Socket</code></h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c++" data-lang="c++"><span class="line"><span class="cl"><span class="k">auto</span> <span class="n">peer</span> <span class="o">=</span> <span class="n">udp</span><span class="o">::</span><span class="n">peer</span><span class="o">::</span><span class="n">create</span><span class="p">(</span><span class="s">&#34;udp4&#34;</span><span class="p">,</span> <span class="n">loop</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="n">peer</span><span class="o">-&gt;</span><span class="n">on_message</span><span class="p">()</span> <span class="o">+=</span> <span class="p">[](</span><span class="k">const</span> <span class="n">core</span><span class="o">::</span><span class="n">buffer</span> <span class="o">&amp;</span><span class="n">datagram</span><span class="p">,</span> <span class="k">const</span> <span class="n">core</span><span class="o">::</span><span class="n">socket_address</span> <span class="o">&amp;</span><span class="n">from</span><span class="p">)</span> <span class="p">{</span> <span class="cm">/* ... */</span> <span class="p">};</span>
+</span></span><span class="line"><span class="cl"><span class="n">peer</span><span class="o">-&gt;</span><span class="n">on_listening</span><span class="p">()</span> <span class="o">+=</span> <span class="p">[</span><span class="o">&amp;</span><span class="p">]</span> <span class="p">{</span> <span class="n">peer</span><span class="o">-&gt;</span><span class="n">send</span><span class="p">(</span><span class="n">core</span><span class="o">::</span><span class="n">make_buffer</span><span class="p">(</span><span class="s">&#34;ping&#34;</span><span class="p">),</span> <span class="mi">9</span><span class="p">,</span> <span class="s">&#34;127.0.0.1&#34;</span><span class="p">);</span> <span class="p">};</span>
+</span></span><span class="line"><span class="cl"><span class="n">peer</span><span class="o">-&gt;</span><span class="n">bind</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s">&#34;127.0.0.1&#34;</span><span class="p">);</span>
+</span></span></code></pre></div><table>
+	<thead>
+			<tr>
+					<th>Method</th>
+					<th>Notes</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>bind(port, address)</code></td>
+					<td><code>port</code> 0 binds an ephemeral port</td>
+			</tr>
+			<tr>
+					<td><code>send(datagram, port, host)</code></td>
+					<td>one datagram; <code>send()</code> before <code>bind()</code> still receives replies</td>
+			</tr>
+			<tr>
+					<td><code>close()</code></td>
+					<td>—</td>
+			</tr>
+	</tbody>
+</table>
+<p>Events: <code>listening</code>, <code>message</code> (<code>core::buffer</code>, <code>core::socket_address</code>),
+<code>error</code> (<code>std::string</code>), <code>close</code>.</p>
+
+</article>
+
+    </main>
+  </div>
+  <footer class="site-footer">
+  <p>&copy; 2026 Arthur de Araújo Farias. All rights reserved.</p>
+</footer>
+
+</body>
+</html>

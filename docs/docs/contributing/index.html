@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Contributing · LambdaTech Networking</title>
+  <meta name="description" content="LambdaTech Networking — a header-only, zero-dependency asynchronous networking toolkit for C&#43;&#43;23: a poll(2) event loop, Node.js-inspired TCP/UDP sockets, and a DNS protocol layer, all driven by the cxflow async runtime.">
+  <link rel="stylesheet" href="/lambdatech-networking/css/style.css">
+  <link rel="stylesheet" href="/lambdatech-networking/css/chroma.css">
+</head>
+<body>
+  <header class="site-header">
+  <a class="brand" href="/">LambdaTech Networking</a>
+  <nav class="top-nav">
+    <a href="/lambdatech-networking/docs/">Docs</a>
+    
+    
+    <a href="/lambdatech-networking/coverage/">Coverage</a>
+    <a href="https://github.com/arthurafarias/lambdatech-networking">GitHub</a>
+  </nav>
+</header>
+
+  <div class="layout">
+    
+
+
+
+<nav class="sidebar">
+  <ul>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/getting-started/">Getting Started</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/core-concepts/">Core Concepts</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/event-loop/">The Event Loop</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/tcp-and-udp/">TCP &amp; UDP</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/dns/">DNS</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/wire-format/">DNS Wire Format</a>
+    </li>
+    
+    <li class="active">
+      <a href="/lambdatech-networking/docs/contributing/">Contributing</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/license/">License</a>
+    </li>
+    
+  </ul>
+</nav>
+
+
+    <main class="content">
+      
+<article class="prose">
+  <h1>Contributing</h1>
+  <p>We welcome issues and pull requests. Suggestions for optimizations, new
+protocols, or feature ideas are especially appreciated!</p>
+<h2 id="running-the-tests">Running the tests</h2>
+<p>The self-hosted test facility
+(<code>include/lambdatech/networking/**/testing/*_test.hpp</code>, see
+<a href="/lambdatech-networking/docs/core-concepts/">Core Concepts</a>) builds into one binary:</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">cmake -S . -B build
+</span></span><span class="line"><span class="cl">cmake --build build --target lambdatech-networking-tests
+</span></span><span class="line"><span class="cl">build/lambdatech-networking-tests
+</span></span></code></pre></div><p>The socket test groups stand real listeners up on <code>127.0.0.1</code> ephemeral
+ports and drive them through the event loop, each guarded by a hard timeout
+so a broken path fails the case instead of hanging the run.</p>
+<h2 id="coverage">Coverage</h2>
+<p>A line-coverage report is generated with <a href="https://gcovr.com/">gcovr</a> (GCC or
+Clang only) and published alongside this site at
+<a href="/lambdatech-networking/coverage/">/lambdatech-networking/coverage/</a>. To regenerate it
+locally:</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">cmake -S . -B build -DLAMBDATECH_NETWORKING_ENABLE_COVERAGE<span class="o">=</span>ON
+</span></span><span class="line"><span class="cl">cmake --build build --target coverage
+</span></span></code></pre></div><p>The report scopes to <code>include/lambdatech/networking/</code> and excludes the
+<code>testing/</code> subdirectories.</p>
+
+</article>
+
+    </main>
+  </div>
+  <footer class="site-footer">
+  <p>&copy; 2026 Arthur de Araújo Farias. All rights reserved.</p>
+</footer>
+
+</body>
+</html>

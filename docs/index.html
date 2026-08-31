@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta name="generator" content="Hugo 0.165.0">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LambdaTech Networking</title>
+  <meta name="description" content="LambdaTech Networking — a header-only, zero-dependency asynchronous networking toolkit for C&#43;&#43;23: a poll(2) event loop, Node.js-inspired TCP/UDP sockets, and a DNS protocol layer, all driven by the cxflow async runtime.">
+  <link rel="stylesheet" href="/lambdatech-networking/css/style.css">
+  <link rel="stylesheet" href="/lambdatech-networking/css/chroma.css">
+</head>
+<body>
+  <header class="site-header">
+  <a class="brand" href="/">LambdaTech Networking</a>
+  <nav class="top-nav">
+    <a href="/lambdatech-networking/docs/">Docs</a>
+    
+    
+    <a href="/lambdatech-networking/coverage/">Coverage</a>
+    <a href="https://github.com/arthurafarias/lambdatech-networking">GitHub</a>
+  </nav>
+</header>
+
+  <div class="layout">
+    
+
+
+
+
+    <main class="content">
+      
+<section class="hero">
+  <h1>LambdaTech Networking</h1>
+  <p class="lead">LambdaTech Networking — a header-only, zero-dependency asynchronous networking toolkit for C&#43;&#43;23: a poll(2) event loop, Node.js-inspired TCP/UDP sockets, and a DNS protocol layer, all driven by the cxflow async runtime.</p>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="/lambdatech-networking/docs/getting-started/">Get started</a>
+    <a class="btn" href="https://github.com/arthurafarias/lambdatech-networking">View on GitHub</a>
+  </div>
+</section>
+<article class="prose">
+  <p>LambdaTech Networking is a header-only, zero-dependency asynchronous networking
+toolkit for C++23. It layers cleanly:</p>
+<ul>
+<li><strong><code>core</code></strong> — the runtime: a <code>poll(2)</code> <strong>event loop</strong> (fd readiness, deferred
+work, timers), a Node.js <code>EventEmitter</code>-style <code>event&lt;&gt;</code> primitive, address
+resolution, and byte buffers. The async machinery under <code>core</code> — <code>task</code>,
+<code>thread_pool</code>, <code>signal</code> — is vendored from the
+<a href="https://github.com/arthurafarias/cxflow">cxflow</a> library, the same design
+that drives its dataflow pipelines.</li>
+<li><strong><code>protocol::tcp</code></strong> — <code>tcp::server</code> and <code>tcp::client</code>, modeled on Node&rsquo;s
+<code>net.Server</code> / <code>net.Socket</code>.</li>
+<li><strong><code>protocol::udp</code></strong> — <code>udp::peer</code>, modeled on Node&rsquo;s <code>dgram.Socket</code>.</li>
+<li><strong><code>protocol::dns</code></strong> — a bounds-checked wire reader/writer, a <code>message</code> type,
+and a <code>dns::client</code> (stub resolver) / <code>dns::server</code> pair built on <code>udp::peer</code>.</li>
+</ul>
+<p>Everything runs on one event-loop thread, so listeners never race each other;
+blocking work (name resolution) is off-loaded to <code>core::thread_pool</code> and its
+result handed back with <code>event_loop::defer()</code>.</p>
+<p>The project is in an early conceptual stage — the core loop, all three
+transports, and the DNS request/response round trip are proven end-to-end by
+the self-hosted test suite. DNS resource-record parsing, name compression on
+write, TLS/DoT, a QUIC transport (the optional <code>plugins/quic/</code> component), and
+an <code>io_uring</code> backend are specified or planned but not yet implemented.</p>
+
+</article>
+
+    </main>
+  </div>
+  <footer class="site-footer">
+  <p>&copy; 2026 Arthur de Araújo Farias. All rights reserved.</p>
+</footer>
+
+</body>
+</html>

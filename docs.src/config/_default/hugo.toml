@@ -1,0 +1,51 @@
+# Default environment — PUBLIC documentation only.
+#
+# `hugo`                -> builds the public site into ../docs   (deployed to GitHub Pages)
+# `hugo -e development` -> also mounts ./development, builds into ../docs-dev  (see config/development)
+#
+# Content lives in two trees, both mounted onto Hugo's `content` root:
+#   ./public       -> public API / usage documentation      (this environment)
+#   ./development  -> specifications and other internal docs (development environment only)
+
+baseURL = "/lambdatech-networking"
+locale = "en-us"
+title = "LambdaTech Networking"
+relativeURLs = false
+publishDir = "../docs"
+enableRobotsTXT = true
+
+# Cross-references to pages that only exist in the `development` build (e.g. the
+# specifications) must not fail the public build.
+refLinksErrorLevel = "warning"
+
+[params]
+  description = "LambdaTech Networking — a header-only, zero-dependency asynchronous networking toolkit for C++23: a poll(2) event loop, Node.js-inspired TCP/UDP sockets, and a DNS protocol layer, all driven by the cxflow async runtime."
+  repo = "https://github.com/arthurafarias/lambdatech-networking"
+
+[markup]
+  [markup.goldmark.renderer]
+    unsafe = true
+  [markup.highlight]
+    noClasses = false
+    style = "monokai"
+    lineNos = false
+
+[outputs]
+  home = ["HTML", "RSS"]
+  section = ["HTML"]
+  page = ["HTML"]
+
+[taxonomies]
+
+# Explicit mounts: once any mount is declared, Hugo drops its defaults, so the
+# shared layouts/ and static/ roots are re-declared here too.
+[module]
+  [[module.mounts]]
+    source = "public"
+    target = "content"
+  [[module.mounts]]
+    source = "layouts"
+    target = "layouts"
+  [[module.mounts]]
+    source = "static"
+    target = "static"

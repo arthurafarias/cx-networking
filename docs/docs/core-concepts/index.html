@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Core Concepts · LambdaTech Networking</title>
+  <meta name="description" content="LambdaTech Networking — a header-only, zero-dependency asynchronous networking toolkit for C&#43;&#43;23: a poll(2) event loop, Node.js-inspired TCP/UDP sockets, and a DNS protocol layer, all driven by the cxflow async runtime.">
+  <link rel="stylesheet" href="/lambdatech-networking/css/style.css">
+  <link rel="stylesheet" href="/lambdatech-networking/css/chroma.css">
+</head>
+<body>
+  <header class="site-header">
+  <a class="brand" href="/">LambdaTech Networking</a>
+  <nav class="top-nav">
+    <a href="/lambdatech-networking/docs/">Docs</a>
+    
+    
+    <a href="/lambdatech-networking/coverage/">Coverage</a>
+    <a href="https://github.com/arthurafarias/lambdatech-networking">GitHub</a>
+  </nav>
+</header>
+
+  <div class="layout">
+    
+
+
+
+<nav class="sidebar">
+  <ul>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/getting-started/">Getting Started</a>
+    </li>
+    
+    <li class="active">
+      <a href="/lambdatech-networking/docs/core-concepts/">Core Concepts</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/event-loop/">The Event Loop</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/tcp-and-udp/">TCP &amp; UDP</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/dns/">DNS</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/wire-format/">DNS Wire Format</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/contributing/">Contributing</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/license/">License</a>
+    </li>
+    
+  </ul>
+</nav>
+
+
+    <main class="content">
+      
+<article class="prose">
+  <h1>Core Concepts</h1>
+  <p>The library is four layers, each in its own directory under
+<code>include/lambdatech/networking/</code>.</p>
+<h2 id="core--the-runtime"><code>core</code> — the runtime</h2>
+<p><strong>Async primitives</strong> (<code>core/task.hpp</code>, <code>core/thread_pool.hpp</code>,
+<code>core/signal.hpp</code>) are vendored from the
+<a href="https://github.com/arthurafarias/cxflow">cxflow</a> library and re-homed into
+<code>namespace lambdatech::networking::core</code>:</p>
+<ul>
+<li><code>task</code> — a dedicated-thread repeating-loop runner. The event loop is one of
+these driving a <code>poll()</code> cycle.</li>
+<li><code>thread_pool</code> — a strict-priority worker pool for short, fire-and-forget
+work (name resolution, slow user callbacks).</li>
+<li><code>signal&lt;Args...&gt;</code> — a connect/emit primitive; <code>emit()</code> is synchronous and
+ordered, <code>emit_async()</code> dispatches through a <code>thread_pool</code>.</li>
+</ul>
+<p><strong><code>core::event&lt;Args...&gt;</code></strong> (<code>core/event.hpp</code>) wraps a <code>signal</code> to give the
+Node.js <code>EventEmitter</code> surface: <code>operator+=</code>, <code>once()</code>, <code>off_all()</code>, <code>emit()</code>.</p>
+<p><strong><code>core::event_loop</code></strong> (<code>core/event_loop.hpp</code>) is the reactor — libuv&rsquo;s role
+behind Node. One <code>task</code> drives one <code>poll(2)</code> cycle that services, in order:</p>
+<ol>
+<li><code>watch(fd, events, cb)</code> / <code>modify</code> / <code>unwatch</code> — fd readiness callbacks.</li>
+<li><code>defer(fn)</code> — run <code>fn</code> on the loop thread ASAP (<code>process.nextTick</code>).</li>
+<li><code>set_timeout(delay, fn)</code> / <code>clear_timeout(id)</code> — timers (<code>setTimeout</code>).</li>
+</ol>
+<p><code>start()</code> runs the loop on its thread; <code>run()</code> blocks the caller until
+<code>stop()</code>; <code>stop()</code> joins.</p>
+<p><strong><code>core::buffer</code></strong> is <code>std::vector&lt;std::byte&gt;</code> plus string interop, and
+<strong><code>core::socket_address</code></strong> is <code>{ address, port, family }</code> with a blocking
+<code>resolve()</code> (getaddrinfo) wrapper.</p>
+<h2 id="protocoltcp"><code>protocol::tcp</code></h2>
+<p><code>tcp::server</code> (<code>net.Server</code>) emits <code>listening</code>, <code>connection</code>
+(<code>std::shared_ptr&lt;tcp::client&gt;</code>), <code>error</code>, <code>close</code>. <code>tcp::client</code>
+(<code>net.Socket</code>) emits <code>connect</code>, <code>data</code>, <code>drain</code>, <code>end</code>, <code>error</code>, <code>close</code> and
+has <code>connect()</code>, <code>write()</code> (returns <code>false</code> when it had to buffer — wait for
+<code>drain</code>), <code>end()</code>, <code>destroy()</code>. Always held through <code>std::shared_ptr</code>.</p>
+<h2 id="protocoludp"><code>protocol::udp</code></h2>
+<p><code>udp::peer</code> (<code>dgram.Socket</code>) emits <code>listening</code>, <code>message</code>
+(<code>core::buffer</code>, <code>core::socket_address</code> sender), <code>error</code>, <code>close</code>, and has
+<code>bind()</code>, <code>send(datagram, port, host)</code>, <code>close()</code>.</p>
+<h2 id="protocoldns"><code>protocol::dns</code></h2>
+<p><code>dns::wire::reader</code> / <code>dns::wire::writer</code> are the bounds-checked, panic-free
+RFC 1035 codec (see <a href="/lambdatech-networking/docs/wire-format/">Wire Format</a>).
+<code>dns::message</code> = <code>dns::header</code> + <code>std::vector&lt;dns::question&gt;</code>, with total
+<code>parse()</code> / <code>serialize()</code>. <code>dns::client</code> is a stub resolver over a
+<code>udp::peer</code> (query → callback with <code>std::optional&lt;message&gt;</code>, matched by id,
+timed out via a loop timer); <code>dns::server</code> binds a <code>udp::peer</code> and emits
+<code>query</code> with a <code>responder</code> that sends the reply back.</p>
+<h2 id="testing">Testing</h2>
+<p>The self-hosted test facility lives in <code>testing/</code> subdirectories next to the
+code it covers. Each header declares an <code>inline static</code> <code>test_group</code> whose
+constructor self-registers it; CMake globs every <code>*_test.hpp</code> into one
+generated translation unit and links a single <code>lambdatech-networking-tests</code>
+binary.</p>
+
+</article>
+
+    </main>
+  </div>
+  <footer class="site-footer">
+  <p>&copy; 2026 Arthur de Araújo Farias. All rights reserved.</p>
+</footer>
+
+</body>
+</html>

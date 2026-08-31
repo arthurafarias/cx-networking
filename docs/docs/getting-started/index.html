@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Getting Started · LambdaTech Networking</title>
+  <meta name="description" content="LambdaTech Networking — a header-only, zero-dependency asynchronous networking toolkit for C&#43;&#43;23: a poll(2) event loop, Node.js-inspired TCP/UDP sockets, and a DNS protocol layer, all driven by the cxflow async runtime.">
+  <link rel="stylesheet" href="/lambdatech-networking/css/style.css">
+  <link rel="stylesheet" href="/lambdatech-networking/css/chroma.css">
+</head>
+<body>
+  <header class="site-header">
+  <a class="brand" href="/">LambdaTech Networking</a>
+  <nav class="top-nav">
+    <a href="/lambdatech-networking/docs/">Docs</a>
+    
+    
+    <a href="/lambdatech-networking/coverage/">Coverage</a>
+    <a href="https://github.com/arthurafarias/lambdatech-networking">GitHub</a>
+  </nav>
+</header>
+
+  <div class="layout">
+    
+
+
+
+<nav class="sidebar">
+  <ul>
+    
+    <li class="active">
+      <a href="/lambdatech-networking/docs/getting-started/">Getting Started</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/core-concepts/">Core Concepts</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/event-loop/">The Event Loop</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/tcp-and-udp/">TCP &amp; UDP</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/dns/">DNS</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/wire-format/">DNS Wire Format</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/contributing/">Contributing</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/license/">License</a>
+    </li>
+    
+  </ul>
+</nav>
+
+
+    <main class="content">
+      
+<article class="prose">
+  <h1>Getting Started</h1>
+  <p>LambdaTech Networking is header-only, so there&rsquo;s nothing to build or link
+against beyond pthreads — just point your compiler at <code>include/</code>.</p>
+<h2 id="an-echo-server-and-client">An echo server and client</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c++" data-lang="c++"><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;future&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;memory&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;string&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;lambdatech/networking/core/buffer.hpp&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;lambdatech/networking/core/event_loop.hpp&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;lambdatech/networking/protocol/tcp/client.hpp&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;lambdatech/networking/protocol/tcp/server.hpp&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">namespace</span> <span class="n">core</span> <span class="o">=</span> <span class="n">lambdatech</span><span class="o">::</span><span class="n">networking</span><span class="o">::</span><span class="n">core</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">namespace</span> <span class="n">tcp</span> <span class="o">=</span> <span class="n">lambdatech</span><span class="o">::</span><span class="n">networking</span><span class="o">::</span><span class="n">protocol</span><span class="o">::</span><span class="n">tcp</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kt">int</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="n">core</span><span class="o">::</span><span class="n">event_loop</span> <span class="n">loop</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">auto</span> <span class="n">server</span> <span class="o">=</span> <span class="n">tcp</span><span class="o">::</span><span class="n">server</span><span class="o">::</span><span class="n">create</span><span class="p">(</span><span class="n">loop</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="k">auto</span> <span class="n">client</span> <span class="o">=</span> <span class="n">tcp</span><span class="o">::</span><span class="n">client</span><span class="o">::</span><span class="n">create</span><span class="p">(</span><span class="n">loop</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="n">std</span><span class="o">::</span><span class="n">promise</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="o">&gt;</span> <span class="n">echoed</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="k">auto</span> <span class="n">future</span> <span class="o">=</span> <span class="n">echoed</span><span class="p">.</span><span class="n">get_future</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="n">server</span><span class="o">-&gt;</span><span class="n">on_connect</span><span class="p">()</span> <span class="o">+=</span> <span class="p">[](</span><span class="k">const</span> <span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">tcp</span><span class="o">::</span><span class="n">client</span><span class="o">&gt;</span> <span class="o">&amp;</span><span class="n">conn</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">conn</span><span class="o">-&gt;</span><span class="n">on_data</span><span class="p">()</span> <span class="o">+=</span> <span class="p">[</span><span class="n">conn</span><span class="p">](</span><span class="k">const</span> <span class="n">core</span><span class="o">::</span><span class="n">buffer</span> <span class="o">&amp;</span><span class="n">chunk</span><span class="p">)</span> <span class="p">{</span> <span class="n">conn</span><span class="o">-&gt;</span><span class="n">write</span><span class="p">(</span><span class="n">chunk</span><span class="p">);</span> <span class="p">};</span>
+</span></span><span class="line"><span class="cl">  <span class="p">};</span>
+</span></span><span class="line"><span class="cl">  <span class="n">server</span><span class="o">-&gt;</span><span class="n">on_listening</span><span class="p">()</span> <span class="o">+=</span> <span class="p">[</span><span class="o">&amp;</span><span class="p">]</span> <span class="p">{</span> <span class="n">client</span><span class="o">-&gt;</span><span class="n">connect</span><span class="p">(</span><span class="n">server</span><span class="o">-&gt;</span><span class="n">address</span><span class="p">().</span><span class="n">port</span><span class="p">,</span> <span class="s">&#34;127.0.0.1&#34;</span><span class="p">);</span> <span class="p">};</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="n">client</span><span class="o">-&gt;</span><span class="n">on_connect</span><span class="p">()</span> <span class="o">+=</span> <span class="p">[</span><span class="o">&amp;</span><span class="p">]</span> <span class="p">{</span> <span class="n">client</span><span class="o">-&gt;</span><span class="n">write</span><span class="p">(</span><span class="n">core</span><span class="o">::</span><span class="n">make_buffer</span><span class="p">(</span><span class="s">&#34;hello over tcp</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">));</span> <span class="p">};</span>
+</span></span><span class="line"><span class="cl">  <span class="n">client</span><span class="o">-&gt;</span><span class="n">on_data</span><span class="p">()</span> <span class="o">+=</span> <span class="p">[</span><span class="o">&amp;</span><span class="p">](</span><span class="k">const</span> <span class="n">core</span><span class="o">::</span><span class="n">buffer</span> <span class="o">&amp;</span><span class="n">chunk</span><span class="p">)</span> <span class="p">{</span> <span class="n">echoed</span><span class="p">.</span><span class="n">set_value</span><span class="p">(</span><span class="n">core</span><span class="o">::</span><span class="n">to_string</span><span class="p">(</span><span class="n">chunk</span><span class="p">));</span> <span class="p">};</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="n">loop</span><span class="p">.</span><span class="n">start</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">  <span class="n">server</span><span class="o">-&gt;</span><span class="n">listen</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s">&#34;127.0.0.1&#34;</span><span class="p">);</span> <span class="c1">// port 0 -&gt; an ephemeral port
+</span></span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="n">std</span><span class="o">::</span><span class="n">string</span> <span class="n">line</span> <span class="o">=</span> <span class="n">future</span><span class="p">.</span><span class="n">get</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">  <span class="n">client</span><span class="o">-&gt;</span><span class="n">destroy</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">  <span class="n">server</span><span class="o">-&gt;</span><span class="n">close</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">  <span class="n">loop</span><span class="p">.</span><span class="n">stop</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>Compile it:</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">g++ -std<span class="o">=</span>c++23 -Iinclude -pthread examples/lnw-example-tcp-echo.cpp -o tcp-echo
+</span></span></code></pre></div><h2 id="the-event-model">The event model</h2>
+<p>Every socket type exposes its events as <code>on_&lt;name&gt;()</code> accessors that return a
+<code>core::event&lt;Args...&gt;</code> — the analogue of a Node <code>EventEmitter</code> channel.
+<code>operator+=</code> adds a listener; <code>.once()</code> returns a <code>subscription</code> you can
+disconnect:</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c++" data-lang="c++"><span class="line"><span class="cl"><span class="n">client</span><span class="p">.</span><span class="n">on_data</span><span class="p">()</span> <span class="o">+=</span> <span class="p">[](</span><span class="k">const</span> <span class="n">core</span><span class="o">::</span><span class="n">buffer</span> <span class="o">&amp;</span><span class="n">chunk</span><span class="p">)</span> <span class="p">{</span> <span class="cm">/* ... */</span> <span class="p">};</span>
+</span></span><span class="line"><span class="cl"><span class="k">auto</span> <span class="n">sub</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">on_close</span><span class="p">().</span><span class="n">once</span><span class="p">([]</span> <span class="p">{</span> <span class="cm">/* fires at most once */</span> <span class="p">});</span>
+</span></span><span class="line"><span class="cl"><span class="n">sub</span><span class="p">.</span><span class="n">disconnect</span><span class="p">();</span>                                   <span class="c1">// like emitter.off(...)
+</span></span></span></code></pre></div><p>Listeners run <strong>synchronously on the one event-loop thread</strong>, in subscription
+order. Anything that would block the loop (DNS lookups, disk) belongs on
+<code>core::thread_pool</code>; hand the result back with <code>loop.defer(...)</code>.</p>
+<p>Continue to <a href="/lambdatech-networking/docs/core-concepts/">Core Concepts</a>.</p>
+
+</article>
+
+    </main>
+  </div>
+  <footer class="site-footer">
+  <p>&copy; 2026 Arthur de Araújo Farias. All rights reserved.</p>
+</footer>
+
+</body>
+</html>

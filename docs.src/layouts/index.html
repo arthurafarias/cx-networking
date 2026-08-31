@@ -1,0 +1,13 @@
+{{ define "main" }}
+<section class="hero">
+  <h1>{{ site.Title }}</h1>
+  <p class="lead">{{ site.Params.description }}</p>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="{{ "docs/getting-started/" | relURL }}">Get started</a>
+    <a class="btn" href="{{ site.Params.repo }}">View on GitHub</a>
+  </div>
+</section>
+<article class="prose">
+  {{ .Content }}
+</article>
+{{ end }}

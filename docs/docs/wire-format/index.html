@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DNS Wire Format · LambdaTech Networking</title>
+  <meta name="description" content="LambdaTech Networking — a header-only, zero-dependency asynchronous networking toolkit for C&#43;&#43;23: a poll(2) event loop, Node.js-inspired TCP/UDP sockets, and a DNS protocol layer, all driven by the cxflow async runtime.">
+  <link rel="stylesheet" href="/lambdatech-networking/css/style.css">
+  <link rel="stylesheet" href="/lambdatech-networking/css/chroma.css">
+</head>
+<body>
+  <header class="site-header">
+  <a class="brand" href="/">LambdaTech Networking</a>
+  <nav class="top-nav">
+    <a href="/lambdatech-networking/docs/">Docs</a>
+    
+    
+    <a href="/lambdatech-networking/coverage/">Coverage</a>
+    <a href="https://github.com/arthurafarias/lambdatech-networking">GitHub</a>
+  </nav>
+</header>
+
+  <div class="layout">
+    
+
+
+
+<nav class="sidebar">
+  <ul>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/getting-started/">Getting Started</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/core-concepts/">Core Concepts</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/event-loop/">The Event Loop</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/tcp-and-udp/">TCP &amp; UDP</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/dns/">DNS</a>
+    </li>
+    
+    <li class="active">
+      <a href="/lambdatech-networking/docs/wire-format/">DNS Wire Format</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/contributing/">Contributing</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/license/">License</a>
+    </li>
+    
+  </ul>
+</nav>
+
+
+    <main class="content">
+      
+<article class="prose">
+  <h1>DNS Wire Format</h1>
+  <p>A quick reference for the RFC 1035 message layout <code>protocol::dns::wire</code> reads
+and writes. All integers are big-endian.</p>
+<h2 id="header-12-bytes">Header (12 bytes)</h2>
+<table>
+	<thead>
+			<tr>
+					<th>Offset</th>
+					<th>Field</th>
+					<th>Notes</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>0</td>
+					<td>ID</td>
+					<td>16-bit request identifier</td>
+			</tr>
+			<tr>
+					<td>2</td>
+					<td>Flags</td>
+					<td><code>QR</code>(1) <code>Opcode</code>(4) <code>AA</code>(1) <code>TC</code>(1) <code>RD</code>(1) <code>RA</code>(1) <code>Z</code>(3) <code>RCODE</code>(4)</td>
+			</tr>
+			<tr>
+					<td>4</td>
+					<td>QDCOUNT</td>
+					<td>question count</td>
+			</tr>
+			<tr>
+					<td>6</td>
+					<td>ANCOUNT</td>
+					<td>answer RR count</td>
+			</tr>
+			<tr>
+					<td>8</td>
+					<td>NSCOUNT</td>
+					<td>authority RR count</td>
+			</tr>
+			<tr>
+					<td>10</td>
+					<td>ARCOUNT</td>
+					<td>additional RR count</td>
+			</tr>
+	</tbody>
+</table>
+<p><code>dns::header</code> stores those flag bits and codes unpacked; <code>parse()</code> / <code>write()</code>
+do the bit-twiddling.</p>
+<h2 id="question">Question</h2>
+<pre tabindex="0"><code>&lt;name&gt;  QTYPE(u16)  QCLASS(u16)
+</code></pre><h2 id="name-encoding">Name encoding</h2>
+<p>A name is a sequence of labels — a length byte (0–63) then that many octets —
+terminated by a zero byte. A length byte with its top two bits set (<code>0xC0</code>) is
+a <strong>compression pointer</strong>: the low 14 bits are an offset from the start of the
+message. <code>wire::reader::read_name</code> follows these (with a hard cap against
+pointer loops); <code>wire::writer::write_name</code> never emits them (SRS-001 M4).</p>
+<h2 id="record-types">Record types</h2>
+<p><code>dns::record_type::</code> exposes <code>a</code> (1), <code>ns</code> (2), <code>cname</code> (5), <code>soa</code> (6), <code>ptr</code>
+(12), <code>mx</code> (15), <code>txt</code> (16), <code>aaaa</code> (28). Unknown values pass through as plain
+<code>uint16_t</code>.</p>
+
+</article>
+
+    </main>
+  </div>
+  <footer class="site-footer">
+  <p>&copy; 2026 Arthur de Araújo Farias. All rights reserved.</p>
+</footer>
+
+</body>
+</html>

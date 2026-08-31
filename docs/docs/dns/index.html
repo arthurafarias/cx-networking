@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DNS · LambdaTech Networking</title>
+  <meta name="description" content="LambdaTech Networking — a header-only, zero-dependency asynchronous networking toolkit for C&#43;&#43;23: a poll(2) event loop, Node.js-inspired TCP/UDP sockets, and a DNS protocol layer, all driven by the cxflow async runtime.">
+  <link rel="stylesheet" href="/lambdatech-networking/css/style.css">
+  <link rel="stylesheet" href="/lambdatech-networking/css/chroma.css">
+</head>
+<body>
+  <header class="site-header">
+  <a class="brand" href="/">LambdaTech Networking</a>
+  <nav class="top-nav">
+    <a href="/lambdatech-networking/docs/">Docs</a>
+    
+    
+    <a href="/lambdatech-networking/coverage/">Coverage</a>
+    <a href="https://github.com/arthurafarias/lambdatech-networking">GitHub</a>
+  </nav>
+</header>
+
+  <div class="layout">
+    
+
+
+
+<nav class="sidebar">
+  <ul>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/getting-started/">Getting Started</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/core-concepts/">Core Concepts</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/event-loop/">The Event Loop</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/tcp-and-udp/">TCP &amp; UDP</a>
+    </li>
+    
+    <li class="active">
+      <a href="/lambdatech-networking/docs/dns/">DNS</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/wire-format/">DNS Wire Format</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/contributing/">Contributing</a>
+    </li>
+    
+    <li>
+      <a href="/lambdatech-networking/docs/license/">License</a>
+    </li>
+    
+  </ul>
+</nav>
+
+
+    <main class="content">
+      
+<article class="prose">
+  <h1>DNS</h1>
+  <p><code>protocol::dns</code> is a DNS message codec plus a client/server pair built on
+<code>udp::peer</code>.</p>
+<h2 id="messages">Messages</h2>
+<p><code>dns::message</code> (<a href="../../../../include/lambdatech/networking/protocol/dns/message.hpp">protocol/dns/message.hpp</a>)
+is <code>dns::header</code> + <code>std::vector&lt;dns::question&gt;</code>.</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c++" data-lang="c++"><span class="line"><span class="cl"><span class="k">namespace</span> <span class="n">dns</span> <span class="o">=</span> <span class="n">lambdatech</span><span class="o">::</span><span class="n">networking</span><span class="o">::</span><span class="n">protocol</span><span class="o">::</span><span class="n">dns</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="n">dns</span><span class="o">::</span><span class="n">message</span> <span class="n">query</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="n">query</span><span class="p">.</span><span class="n">header</span><span class="p">.</span><span class="n">id</span> <span class="o">=</span> <span class="mh">0x1234</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="n">query</span><span class="p">.</span><span class="n">header</span><span class="p">.</span><span class="n">recursion_desired</span> <span class="o">=</span> <span class="nb">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="n">query</span><span class="p">.</span><span class="n">questions</span><span class="p">.</span><span class="n">push_back</span><span class="p">({</span><span class="s">&#34;www.lambdatech.io&#34;</span><span class="p">,</span> <span class="n">dns</span><span class="o">::</span><span class="n">record_type</span><span class="o">::</span><span class="n">a</span><span class="p">,</span> <span class="n">dns</span><span class="o">::</span><span class="n">record_class</span><span class="o">::</span><span class="n">in</span><span class="p">});</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">auto</span> <span class="n">wire</span>   <span class="o">=</span> <span class="n">query</span><span class="p">.</span><span class="n">serialize</span><span class="p">();</span>          <span class="c1">// std::optional&lt;std::vector&lt;std::byte&gt;&gt;
+</span></span></span><span class="line"><span class="cl"><span class="k">auto</span> <span class="n">parsed</span> <span class="o">=</span> <span class="n">dns</span><span class="o">::</span><span class="n">message</span><span class="o">::</span><span class="n">parse</span><span class="p">(</span><span class="o">*</span><span class="n">wire</span><span class="p">);</span>  <span class="c1">// std::optional&lt;dns::message&gt;
+</span></span></span><span class="line"><span class="cl"><span class="c1">// *parsed == query
+</span></span></span></code></pre></div><p><code>parse()</code> and <code>serialize()</code> are <strong>total</strong> — they return <code>std::optional</code> and
+never throw or read out of bounds on a malformed datagram. The answer /
+authority / additional resource-record sections are not modeled yet (SRS-001
+M3); <code>parse()</code> still reads <code>QDCOUNT</code> questions so the header counts stay
+honest.</p>
+<h2 id="dnsclient---a-stub-resolver"><code>dns::client</code>  — a stub resolver</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c++" data-lang="c++"><span class="line"><span class="cl"><span class="k">auto</span> <span class="n">resolver</span> <span class="o">=</span> <span class="n">dns</span><span class="o">::</span><span class="n">client</span><span class="o">::</span><span class="n">create</span><span class="p">(</span><span class="s">&#34;1.1.1.1&#34;</span><span class="p">,</span> <span class="mi">53</span><span class="p">,</span> <span class="n">loop</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="n">resolver</span><span class="o">-&gt;</span><span class="n">set_timeout</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">chrono</span><span class="o">::</span><span class="n">seconds</span><span class="p">(</span><span class="mi">3</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl"><span class="n">resolver</span><span class="o">-&gt;</span><span class="n">query</span><span class="p">(</span><span class="s">&#34;example.com&#34;</span><span class="p">,</span> <span class="n">dns</span><span class="o">::</span><span class="n">record_type</span><span class="o">::</span><span class="n">a</span><span class="p">,</span> <span class="p">[](</span><span class="n">std</span><span class="o">::</span><span class="n">optional</span><span class="o">&lt;</span><span class="n">dns</span><span class="o">::</span><span class="n">message</span><span class="o">&gt;</span> <span class="n">reply</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">reply</span><span class="p">)</span>                    <span class="p">{</span> <span class="cm">/* timed out */</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="k">else</span> <span class="nf">if</span> <span class="p">(</span><span class="n">reply</span><span class="o">-&gt;</span><span class="n">header</span><span class="p">.</span><span class="n">rcode</span> <span class="o">==</span> <span class="n">dns</span><span class="o">::</span><span class="n">rcode</span><span class="o">::</span><span class="n">no_error</span><span class="p">)</span> <span class="p">{</span> <span class="cm">/* ... */</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">});</span>
+</span></span></code></pre></div><p>It sends the query over a <code>udp::peer</code>, matches replies to outstanding queries
+by the 16-bit id, and calls back with <code>std::nullopt</code> if the loop timer fires
+first. <code>on_error()</code> reports socket / parse failures.</p>
+<h2 id="dnsserver"><code>dns::server</code></h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c++" data-lang="c++"><span class="line"><span class="cl"><span class="k">auto</span> <span class="n">server</span> <span class="o">=</span> <span class="n">dns</span><span class="o">::</span><span class="n">server</span><span class="o">::</span><span class="n">create</span><span class="p">(</span><span class="n">loop</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="n">server</span><span class="o">-&gt;</span><span class="n">on_query</span><span class="p">()</span> <span class="o">+=</span> <span class="p">[](</span><span class="k">const</span> <span class="n">dns</span><span class="o">::</span><span class="n">message</span> <span class="o">&amp;</span><span class="n">request</span><span class="p">,</span> <span class="k">const</span> <span class="n">dns</span><span class="o">::</span><span class="n">server</span><span class="o">::</span><span class="n">responder</span> <span class="o">&amp;</span><span class="n">reply</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="n">dns</span><span class="o">::</span><span class="n">message</span> <span class="n">answer</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="n">answer</span><span class="p">.</span><span class="n">header</span><span class="p">.</span><span class="n">rcode</span> <span class="o">=</span> <span class="n">dns</span><span class="o">::</span><span class="n">rcode</span><span class="o">::</span><span class="n">not_implemented</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="n">answer</span><span class="p">.</span><span class="n">questions</span> <span class="o">=</span> <span class="n">request</span><span class="p">.</span><span class="n">questions</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="n">reply</span><span class="p">.</span><span class="n">send</span><span class="p">(</span><span class="n">answer</span><span class="p">);</span>            <span class="c1">// id and the QR bit are filled in for you
+</span></span></span><span class="line"><span class="cl"><span class="p">};</span>
+</span></span><span class="line"><span class="cl"><span class="n">server</span><span class="o">-&gt;</span><span class="n">listen</span><span class="p">(</span><span class="mi">5353</span><span class="p">,</span> <span class="s">&#34;127.0.0.1&#34;</span><span class="p">);</span>
+</span></span></code></pre></div><p><code>listen()</code> binds a <code>udp::peer</code>; each datagram is parsed and emitted as
+<code>query</code> together with a <code>responder</code> bound to the sender&rsquo;s address.</p>
+
+</article>
+
+    </main>
+  </div>
+  <footer class="site-footer">
+  <p>&copy; 2026 Arthur de Araújo Farias. All rights reserved.</p>
+</footer>
+
+</body>
+</html>
