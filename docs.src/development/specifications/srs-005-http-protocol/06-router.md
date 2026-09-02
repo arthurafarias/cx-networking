@@ -14,7 +14,7 @@ first handler whose method and path pattern match.
 
 ```c++
 static std::shared_ptr<router> create();
-void attach(const std::shared_ptr<server> &srv);   // subscribes to on_request()
+void attach(const std::shared_ptr<server> srv);   // subscribes to on_request()
 ```
 
 `attach` may be called on more than one server. The router keeps a

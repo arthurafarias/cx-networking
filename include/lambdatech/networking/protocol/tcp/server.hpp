@@ -54,7 +54,7 @@ public:
 
   // --- events (subscribe with on_<name>() += listener) -------------
   core::event<> &on_listening() { return listening_; }
-  core::event<const std::shared_ptr<client> &> &on_connect() { return connection_; }
+  core::event<std::shared_ptr<client>>& on_connect() { return connection_; }
   core::event<const std::string &> &on_error() { return error_; }
   core::event<> &on_close() { return close_; }
 
@@ -155,7 +155,7 @@ private:
     }
   }
 
-  void drop(const std::shared_ptr<client> &conn) {
+  void drop(const std::shared_ptr<client> conn) {
     std::unique_lock lock(mutex_);
     std::erase(conns_, conn);
   }
@@ -167,7 +167,7 @@ private:
   std::vector<std::shared_ptr<client>> conns_;
 
   core::event<> listening_;
-  core::event<const std::shared_ptr<client> &> connection_;
+  core::event<std::shared_ptr<client>> connection_;
   core::event<const std::string &> error_;
   core::event<> close_;
 };

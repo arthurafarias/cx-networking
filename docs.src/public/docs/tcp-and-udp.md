@@ -20,7 +20,7 @@ server->listen(0, "127.0.0.1");   // port 0 -> ephemeral
 | Event | Args |
 |---|---|
 | `listening` | — |
-| `connect` | `const std::shared_ptr<tcp::client> &` |
+| `connect` | `const std::shared_ptr<tcp::client> ` |
 | `error` | `const std::string &` |
 | `close` | — |
 
