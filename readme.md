@@ -63,7 +63,7 @@ int main() {
   std::promise<std::string> echoed;
   auto future = echoed.get_future();
 
-  server->on_connect() += [](const std::shared_ptr<tcp::client> &conn) {
+  server->on_connect() += [](const std::shared_ptr<tcp::client> conn) {
     conn->on_data() += [conn](const core::buffer &chunk) { conn->write(chunk); };  // echo
   };
   server->on_listening() += [&] { client->connect(server->address().port, "127.0.0.1"); };

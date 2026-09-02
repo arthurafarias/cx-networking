@@ -38,7 +38,7 @@ struct tcp_echo_test : public test_group {
                           std::promise<std::string> echoed;
                           auto fut = echoed.get_future();
 
-                          srv->on_connect() += [](const std::shared_ptr<tcp::client> &conn) {
+                          srv->on_connect() += [](const std::shared_ptr<tcp::client> conn) {
                             conn->on_data() += [conn](const core::buffer &chunk) { conn->write(chunk); };
                           };
                           srv->on_listening() += [&] {
@@ -70,7 +70,7 @@ struct tcp_echo_test : public test_group {
                           std::promise<std::string> peer;
                           auto fut = peer.get_future();
 
-                          srv->on_connect() += [&](const std::shared_ptr<tcp::client> &conn) {
+                          srv->on_connect() += [&](const std::shared_ptr<tcp::client> conn) {
                             peer.set_value(conn->remote_address().address);
                           };
                           srv->on_listening() += [&] { cli->connect(srv->address().port, "127.0.0.1"); };

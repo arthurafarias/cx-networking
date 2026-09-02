@@ -12,7 +12,7 @@ or take one from an event).
 
 ```c++
 auto server = tcp::server::create(loop);
-server->on_connect() += [](const std::shared_ptr<tcp::client> &conn) { /* ... */ };
+server->on_connect() += [](const std::shared_ptr<tcp::client> conn) { /* ... */ };
 server->on_listening() += [&] { /* server->address().port is now known */ };
 server->listen(0, "127.0.0.1");   // port 0 -> ephemeral
 ```

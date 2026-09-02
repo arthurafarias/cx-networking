@@ -34,7 +34,7 @@ int main() {
   std::promise<std::string> echoed;
   auto future = echoed.get_future();
 
-  server->on_connect() += [](const std::shared_ptr<tcp::client> &conn) {
+  server->on_connect() += [](const std::shared_ptr<tcp::client> conn) {
     conn->on_data() += [conn](const core::buffer &chunk) {
       std::printf("[server] echoing %zu bytes\n", chunk.size());
       conn->write(chunk);
