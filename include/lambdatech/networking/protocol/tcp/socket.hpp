@@ -43,6 +43,7 @@
 #include <lambdatech/networking/core/event_loop.hpp>
 #include <lambdatech/networking/core/native.hpp>
 #include <lambdatech/networking/core/thread_pool.hpp>
+#include <lambdatech/networking/core/descriptor.hpp>
 
 namespace lambdatech::networking::protocol::tcp {
 
@@ -51,18 +52,19 @@ namespace native = lambdatech::networking::core::native;
 
 class server;
 
-class client : public std::enable_shared_from_this<client> {
+class socket : public std::enable_shared_from_this<socket> {
 public:
   enum class state { idle, connecting, open, closed };
 
-  static std::shared_ptr<client> create(core::event_loop &loop = core::event_loop::instance()) {
-    return std::shared_ptr<client>(new client(loop));
+  static std::shared_ptr<socket> create(core::event_loop &loop = core::event_loop::instance()) {
+    return std::shared_ptr<socket>(new socket(loop));
   }
 
-  ~client() { native::close_fd(fd_); }
+  // ~socket() { native::close_fd(desc); }
+  ~socket() { core::descriptor::close(desc); }
 
-  client(const client &) = delete;
-  client &operator=(const client &) = delete;
+  socket(const socket &) = delete;
+  socket &operator=(const socket &) = delete;
 
   // --- events (subscribe with on_<name>() += listener) -------------
   core::event<> &on_connect() { return connect_; }
@@ -104,7 +106,7 @@ public:
     }
     bool buffered = out_offset_ < outbuf_.size();
     if (buffered) {
-      loop_.modify(fd_, POLLIN | POLLOUT);
+      loop_.modify(desc, POLLIN | POLLOUT);
     }
     return !buffered;
   }
@@ -114,7 +116,7 @@ public:
     std::unique_lock lock(mutex_);
     ended_ = true;
     if (state_ == state::open && out_offset_ >= outbuf_.size()) {
-      ::shutdown(fd_, SHUT_WR);
+      ::shutdown(desc, SHUT_WR);
     }
   }
 
@@ -130,15 +132,15 @@ public:
 private:
   friend class server;
 
-  explicit client(core::event_loop &loop) : loop_(loop) {}
+  explicit socket(core::event_loop &loop) : loop_(loop) {}
 
   // Adopt an already-connected fd (used by tcp::server).
-  client(core::event_loop &loop, int fd, core::socket_address peer)
-      : loop_(loop), fd_(fd), state_(state::open), peer_(std::move(peer)) {}
+  socket(core::event_loop &loop, int fd, core::socket_address peer)
+      : loop_(loop), desc(fd), state_(state::open), peer_(std::move(peer)) {}
 
   void begin_reading() {
     auto weak = weak_from_this();
-    loop_.watch(fd_, POLLIN, [weak](short revents) {
+    loop_.watch(desc, POLLIN, [weak](short revents) {
       if (auto self = weak.lock()) {
         self->on_io(revents);
       }
@@ -164,13 +166,13 @@ private:
 
     {
       std::unique_lock lock(mutex_);
-      fd_ = fd;
+      desc = fd;
       state_ = state::connecting;
       peer_ = addr;
     }
 
     auto weak = weak_from_this();
-    loop_.watch(fd_, POLLOUT, [weak](short revents) {
+    loop_.watch(desc, POLLOUT, [weak](short revents) {
       if (auto self = weak.lock()) {
         self->on_io(revents);
       }
@@ -185,7 +187,7 @@ private:
     }
 
     if (current == state::connecting) {
-      int err = native::socket_error(fd_);
+      int err = native::socket_error(desc);
       if (err != 0) {
         fail(std::string("connect: ") + std::strerror(err));
         return;
@@ -194,11 +196,11 @@ private:
         std::unique_lock lock(mutex_);
         state_ = state::open;
       }
-      loop_.modify(fd_, POLLIN);
+      loop_.modify(desc, POLLIN);
       connect_.emit();
       std::unique_lock lock(mutex_);
       if (out_offset_ < outbuf_.size()) {
-        loop_.modify(fd_, POLLIN | POLLOUT);
+        loop_.modify(desc, POLLIN | POLLOUT);
       }
       return;
     }
@@ -215,11 +217,11 @@ private:
         drained = out_offset_ >= outbuf_.size();
       }
       if (drained) {
-        loop_.modify(fd_, POLLIN);
+        loop_.modify(desc, POLLIN);
         drain_.emit();
         std::unique_lock lock(mutex_);
         if (ended_) {
-          ::shutdown(fd_, SHUT_WR);
+          ::shutdown(desc, SHUT_WR);
         }
       }
     }
@@ -232,7 +234,7 @@ private:
   void drain_input() {
     std::byte tmp[65536];
     while (true) {
-      ssize_t got = ::recv(fd_, tmp, sizeof(tmp), 0);
+      ssize_t got = ::recv(desc, tmp, sizeof(tmp), 0);
       if (got > 0) {
         data_.emit(core::make_buffer(std::span<const std::byte>(tmp, static_cast<std::size_t>(got))));
         continue;
@@ -267,7 +269,7 @@ private:
   // `lock` on mutex_.
   void pump_output(std::unique_lock<std::mutex> &lock) {
     while (out_offset_ < outbuf_.size()) {
-      ssize_t sent = ::send(fd_, outbuf_.data() + out_offset_, outbuf_.size() - out_offset_, MSG_NOSIGNAL);
+      ssize_t sent = ::send(desc, outbuf_.data() + out_offset_, outbuf_.size() - out_offset_, MSG_NOSIGNAL);
       if (sent > 0) {
         out_offset_ += static_cast<std::size_t>(sent);
         continue;
@@ -296,23 +298,24 @@ private:
     bool was_live;
     {
       std::unique_lock lock(mutex_);
-      was_live = state_ != state::closed && fd_ >= 0;
+      was_live = state_ != state::closed && descriptor::valid(desc);
       state_ = state::closed;
     }
     if (!was_live) {
       return;
     }
-    loop_.unwatch(fd_);
+    loop_.unwatch(desc);
     {
       std::unique_lock lock(mutex_);
-      native::close_fd(fd_);
+      // native::close_fd(descriptor);
+      descriptor::close(desc);
     }
     close_.emit();
   }
 
   core::event_loop &loop_;
   mutable std::mutex mutex_;
-  int fd_ = -1;
+  tcp::descriptor::state desc;
   state state_ = state::idle;
   core::socket_address peer_;
 

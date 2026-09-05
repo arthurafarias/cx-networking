@@ -34,7 +34,7 @@
 #include <lambdatech/networking/core/event.hpp>
 #include <lambdatech/networking/core/event_loop.hpp>
 #include <lambdatech/networking/core/native.hpp>
-#include <lambdatech/networking/protocol/tcp/client.hpp>
+#include <lambdatech/networking/protocol/tcp/socket.hpp>
 
 namespace lambdatech::networking::protocol::tcp {
 
@@ -54,7 +54,7 @@ public:
 
   // --- events (subscribe with on_<name>() += listener) -------------
   core::event<> &on_listening() { return listening_; }
-  core::event<std::shared_ptr<client>>& on_connect() { return connection_; }
+  core::event<std::shared_ptr<socket>>& on_connect() { return connection_; }
   core::event<const std::string &> &on_error() { return error_; }
   core::event<> &on_close() { return close_; }
 
@@ -135,8 +135,8 @@ private:
         continue;
       }
 
-      auto conn = std::shared_ptr<client>(
-          new client(loop_, cfd, core::socket_address::from_sockaddr(reinterpret_cast<sockaddr *>(&peer))));
+      auto conn = std::shared_ptr<socket>(
+          new socket(loop_, cfd, core::socket_address::from_sockaddr(reinterpret_cast<sockaddr *>(&peer))));
       conn->begin_reading();
 
       {
@@ -144,7 +144,7 @@ private:
         conns_.push_back(conn);
       }
       std::weak_ptr<server> weak = weak_from_this();
-      std::weak_ptr<client> weak_conn = conn;
+      std::weak_ptr<socket> weak_conn = conn;
       conn->on_close() += [weak, weak_conn] {
         if (auto self = weak.lock()) {
           self->drop(weak_conn.lock());
@@ -155,7 +155,7 @@ private:
     }
   }
 
-  void drop(const std::shared_ptr<client> conn) {
+  void drop(const std::shared_ptr<socket> conn) {
     std::unique_lock lock(mutex_);
     std::erase(conns_, conn);
   }
@@ -164,10 +164,10 @@ private:
   std::mutex mutex_;
   int fd_ = -1;
   core::socket_address bound_;
-  std::vector<std::shared_ptr<client>> conns_;
+  std::vector<std::shared_ptr<socket>> conns_;
 
   core::event<> listening_;
-  core::event<std::shared_ptr<client>> connection_;
+  core::event<std::shared_ptr<socket>> connection_;
   core::event<const std::string &> error_;
   core::event<> close_;
 };

@@ -8,7 +8,7 @@ weight: 30
 Implemented in
 [protocol/tcp/server.hpp](../../../../include/lambdatech/networking/protocol/tcp/server.hpp)
 and
-[protocol/tcp/client.hpp](../../../../include/lambdatech/networking/protocol/tcp/client.hpp).
+[protocol/tcp/socket.hpp](../../../../include/lambdatech/networking/protocol/tcp/socket.hpp).
 
 ### REQ-3.1 — server: listen and accept
 

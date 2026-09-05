@@ -22,6 +22,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <mutex>
 #include <poll.h>
 #include <sys/eventfd.h>
@@ -30,9 +31,17 @@
 #include <vector>
 
 #include <lambdatech/networking/core/task.hpp>
+#include "lambdatech/networking/core/descriptor.hpp"
 
 namespace lambdatech::networking::core {
 
+
+  // the event loop should provide an interface to implement based on:
+  // generic descirptor containers
+  // so, the posix api is entirely dissociated from the use we give and
+  // we can replace it.
+
+  // could you redesign the requirements to meet this design goal?
 class event_loop {
 public:
   using io_callback = std::function<void(short revents)>;
@@ -68,10 +77,10 @@ public:
     wake();
   }
 
-  void modify(int fd, short events) {
+  void modify(descriptor& desc, short events) {
     {
       std::unique_lock lock(mutex_);
-      auto it = watches_.find(fd);
+      auto it = watches_.find(desc);
       if (it == watches_.end()) {
         return;
       }
@@ -211,6 +220,7 @@ private:
       return;
     }
 
+    // todo: abstract this to use descriptor::state
     std::vector<pollfd> fds;
     {
       std::unique_lock lock(mutex_);
@@ -262,7 +272,7 @@ private:
   int wake_fd_ = -1;
 
   mutable std::mutex mutex_;
-  std::unordered_map<int, watch_entry> watches_;
+  std::map<core::descriptor::state, watch_entry> watches_;
   std::vector<deferred> deferred_;
   std::vector<timer> timers_;
   timer_id next_timer_id_ = 1;

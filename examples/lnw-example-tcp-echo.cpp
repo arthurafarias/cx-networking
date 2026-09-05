@@ -19,7 +19,7 @@
 
 #include <lambdatech/networking/core/buffer.hpp>
 #include <lambdatech/networking/core/event_loop.hpp>
-#include <lambdatech/networking/protocol/tcp/client.hpp>
+#include <lambdatech/networking/protocol/tcp/socket.hpp>
 #include <lambdatech/networking/protocol/tcp/server.hpp>
 
 namespace core = lambdatech::networking::core;
@@ -29,12 +29,12 @@ int main() {
   core::event_loop loop;
 
   auto server = tcp::server::create(loop);
-  auto client = tcp::client::create(loop);
+  auto client = tcp::socket::create(loop);
 
   std::promise<std::string> echoed;
   auto future = echoed.get_future();
 
-  server->on_connect() += [](const std::shared_ptr<tcp::client> conn) {
+  server->on_connect() += [](const std::shared_ptr<tcp::socket> conn) {
     conn->on_data() += [conn](const core::buffer &chunk) {
       std::printf("[server] echoing %zu bytes\n", chunk.size());
       conn->write(chunk);

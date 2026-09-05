@@ -15,7 +15,7 @@ against beyond pthreads — just point your compiler at `include/`.
 
 #include <lambdatech/networking/core/buffer.hpp>
 #include <lambdatech/networking/core/event_loop.hpp>
-#include <lambdatech/networking/protocol/tcp/client.hpp>
+#include <lambdatech/networking/protocol/tcp/socket.hpp>
 #include <lambdatech/networking/protocol/tcp/server.hpp>
 
 namespace core = lambdatech::networking::core;
