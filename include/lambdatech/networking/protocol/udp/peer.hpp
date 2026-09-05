@@ -17,40 +17,42 @@
 //   close        the socket closed
 //
 // send() takes an explicit destination per call, like dgram.Socket.send().
+// All OS access is via core::socket_ops / core::descriptor / core::poller
+// (SRS-008).
 
-#include <cerrno>
+#include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <memory>
 #include <mutex>
 #include <span>
 #include <string>
+#include <system_error>
 #include <utility>
-
-#include <netinet/in.h>
-#include <poll.h>
-#include <sys/socket.h>
 
 #include <lambdatech/networking/core/address.hpp>
 #include <lambdatech/networking/core/buffer.hpp>
+#include <lambdatech/networking/core/descriptor.hpp>
 #include <lambdatech/networking/core/event.hpp>
 #include <lambdatech/networking/core/event_loop.hpp>
-#include <lambdatech/networking/core/native.hpp>
+#include <lambdatech/networking/core/poller.hpp>
+#include <lambdatech/networking/core/resolver.hpp>
+#include <lambdatech/networking/core/socket_ops.hpp>
 
 namespace lambdatech::networking::protocol::udp {
 
 namespace core = lambdatech::networking::core;
-namespace native = lambdatech::networking::core::native;
+namespace sock = lambdatech::networking::core::socket_ops;
+using core::poller::interest;
 
 class peer : public std::enable_shared_from_this<peer> {
 public:
   // family: "udp4" (default) or "udp6", mirroring dgram.createSocket.
   static std::shared_ptr<peer> create(std::string family = "udp4",
                                       core::event_loop &loop = core::event_loop::instance()) {
-    return std::shared_ptr<peer>(new peer(family == "udp6" ? AF_INET6 : AF_INET, loop));
+    return std::shared_ptr<peer>(new peer(family == "udp6" ? sock::domain::inet6 : sock::domain::inet, loop));
   }
 
-  ~peer() { native::close_fd(fd_); }
+  ~peer() { core::descriptor::close(fd_); }
 
   peer(const peer &) = delete;
   peer &operator=(const peer &) = delete;
@@ -62,17 +64,17 @@ public:
 
   // dgram.Socket.bind([port][, address])
   void bind(std::uint16_t port = 0, std::string address = "0.0.0.0") {
-    if (family_ == AF_INET6 && address == "0.0.0.0") {
+    if (family_ == sock::domain::inet6 && address == "0.0.0.0") {
       address = "::";
     }
     if (!open_socket()) {
       return;
     }
-    core::socket_address local{address, port, family_};
-    socklen_t len = 0;
-    sockaddr_storage ss = local.to_sockaddr(len);
-    if (::bind(fd_, reinterpret_cast<sockaddr *>(&ss), len) != 0) {
-      emit_error(native::last_error("bind"));
+    core::socket_address local{address, port, family_ == sock::domain::inet6
+                                                  ? static_cast<int>(core::address_family::inet6)
+                                                  : static_cast<int>(core::address_family::inet)};
+    if (std::errc e = sock::bind(fd_, local); e != std::errc{}) {
+      emit_error(sock::describe(e, "bind"));
       return;
     }
     read_back_local();
@@ -83,19 +85,17 @@ public:
   // Sends one datagram. Resolves `host` synchronously (numeric hosts are the
   // common case for DNS); returns false if the socket isn't usable.
   bool send(std::span<const std::byte> datagram, std::uint16_t port, const std::string &host) {
-    if (fd_ < 0 && !open_socket()) {
+    if (!core::descriptor::valid(fd_) && !open_socket()) {
       return false;
     }
-    auto dest = core::resolve_one(host, port, /*datagram=*/true);
+    auto dest = core::resolver::resolve_one(host, port, /*datagram=*/true);
     if (!dest) {
       emit_error("ENOTFOUND: " + host);
       return false;
     }
-    socklen_t len = 0;
-    sockaddr_storage ss = dest->to_sockaddr(len);
-    ssize_t n = ::sendto(fd_, datagram.data(), datagram.size(), MSG_NOSIGNAL, reinterpret_cast<sockaddr *>(&ss), len);
-    if (n < 0) {
-      emit_error(native::last_error("sendto"));
+    sock::transfer n = sock::send_to(fd_, datagram, *dest);
+    if (n.error != std::errc{}) {
+      emit_error(sock::describe(n.error, "sendto"));
       return false;
     }
     if (!reading_) {
@@ -107,11 +107,11 @@ public:
   }
 
   void close() {
-    if (fd_ < 0) {
+    if (!core::descriptor::valid(fd_)) {
       return;
     }
     loop_.unwatch(fd_);
-    native::close_fd(fd_);
+    core::descriptor::close(fd_);
     reading_ = false;
     close_.emit();
   }
@@ -119,30 +119,28 @@ public:
   const core::socket_address &address() const { return local_; }
 
 private:
-  peer(int family, core::event_loop &loop) : loop_(loop), family_(family) {}
+  peer(sock::domain family, core::event_loop &loop) : loop_(loop), family_(family) {}
 
   bool open_socket() {
-    if (fd_ >= 0) {
+    if (core::descriptor::valid(fd_)) {
       return true;
     }
-    fd_ = ::socket(family_, SOCK_DGRAM, 0);
-    if (fd_ < 0 || !native::set_nonblocking(fd_)) {
-      emit_error(native::last_error("socket"));
-      native::close_fd(fd_);
+    auto opened = sock::open(family_, sock::transport::datagram);
+    if (!opened) {
+      emit_error(sock::describe(opened.error, "socket"));
       return false;
     }
-    int yes = 1;
-    ::setsockopt(fd_, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+    fd_ = std::move(opened.handle);
+    if (std::errc e = sock::set_nonblocking(fd_); e != std::errc{}) {
+      emit_error(sock::describe(e, "socket"));
+      core::descriptor::close(fd_);
+      return false;
+    }
+    sock::set_reuse_addr(fd_);
     return true;
   }
 
-  void read_back_local() {
-    sockaddr_storage ss{};
-    socklen_t len = sizeof(ss);
-    if (::getsockname(fd_, reinterpret_cast<sockaddr *>(&ss), &len) == 0) {
-      local_ = core::socket_address::from_sockaddr(reinterpret_cast<sockaddr *>(&ss));
-    }
-  }
+  void read_back_local() { local_ = sock::local_endpoint(fd_); }
 
   void begin_reading() {
     if (reading_) {
@@ -150,7 +148,7 @@ private:
     }
     reading_ = true;
     auto weak = weak_from_this();
-    loop_.watch(fd_, POLLIN, [weak](short) {
+    loop_.watch(fd_, interest::read, [weak](core::poller::ready) {
       if (auto self = weak.lock()) {
         self->drain();
       }
@@ -160,21 +158,19 @@ private:
   void drain() {
     std::byte tmp[65536];
     while (true) {
-      sockaddr_storage from{};
-      socklen_t from_len = sizeof(from);
-      ssize_t got = ::recvfrom(fd_, tmp, sizeof(tmp), 0, reinterpret_cast<sockaddr *>(&from), &from_len);
-      if (got >= 0) {
-        message_.emit(core::make_buffer(std::span<const std::byte>(tmp, static_cast<std::size_t>(got))),
-                      core::socket_address::from_sockaddr(reinterpret_cast<sockaddr *>(&from)));
+      sock::received got = sock::recv_from(fd_, std::span<std::byte>(tmp, sizeof(tmp)));
+      if (got.count >= 0 && got.error == std::errc{}) {
+        message_.emit(core::make_buffer(std::span<const std::byte>(tmp, static_cast<std::size_t>(got.count))),
+                      got.from);
         continue;
       }
-      if (errno == EAGAIN || errno == EWOULDBLOCK) {
+      if (core::would_block(got.error)) {
         return;
       }
-      if (errno == EINTR) {
+      if (got.error == std::errc::interrupted) {
         continue;
       }
-      emit_error(native::last_error("recvfrom"));
+      emit_error(sock::describe(got.error, "recvfrom"));
       return;
     }
   }
@@ -182,8 +178,8 @@ private:
   void emit_error(std::string message) { error_.emit(message); }
 
   core::event_loop &loop_;
-  int family_;
-  int fd_ = -1;
+  sock::domain family_;
+  core::descriptor::state fd_;
   bool reading_ = false;
   core::socket_address local_;
 

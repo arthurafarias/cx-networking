@@ -10,8 +10,7 @@
 
 #include <chrono>
 #include <future>
-#include <poll.h>
-#include <sys/socket.h>
+#include <sys/socket.h> // socketpair - a raw fixture, per SRS-008 NFR-1
 #include <thread>
 #include <unistd.h>
 
@@ -36,7 +35,7 @@ struct event_loop_test : public test_group {
                           std::promise<char> got;
                           auto fut = got.get_future();
 
-                          loop.watch(sv[0], POLLIN, [&](short) {
+                          loop.watch(sv[0], core::poller::interest::read, [&](core::poller::ready) {
                             char c = 0;
                             if (::read(sv[0], &c, 1) == 1) {
                               got.set_value(c);

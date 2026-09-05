@@ -49,6 +49,12 @@ Active/Archived status:
   `AF_PACKET`/TAP `net::device`, `net::stack` (ARP/NDP, IPv4/IPv6, ICMP,
   routing, reassembly), and `net::udp_socket` / `net::tcp_socket` /
   `net::tcp_listener` mirroring the SRS-003 surface. Specified, not started.
+- [SRS-008: Platform Backend Isolation](srs-008-platform-backend-isolation/) —
+  every OS dependency of the core (descriptor I/O, readiness polling, the BSD
+  socket calls, name resolution) pushed behind compile-time-selected backend
+  façades in `core::` (`descriptor`, `poller`, `socket_ops`, `resolver`), so
+  `event_loop` and the protocol layer name no `<poll.h>` / `<sys/socket.h>`.
+  posix backend done; `standalone` in-process fabric in progress.
 
 ## Archived (implemented)
 

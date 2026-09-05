@@ -8,9 +8,9 @@
 
 #pragma once
 
-// lambdatech::networking::protocol::tcp::client - a non-blocking TCP
+// lambdatech::networking::protocol::tcp::socket - a non-blocking TCP
 // connection modeled on Node.js's net.Socket. Events (subscribe with
-// on["name"] += listener):
+// on_<name>() += listener):
 //
 //   connect   the connection is established
 //   data      a chunk arrived                (core::buffer)
@@ -19,36 +19,36 @@
 //   error     a fatal error                  (std::string)
 //   close     the socket is fully closed
 //
-// Always hold a client through std::shared_ptr (use tcp::client::create or
-// take one from tcp::server's 'connection' event): the event loop keeps a
+// Always hold a socket through std::shared_ptr (use tcp::socket::create or
+// take one from tcp::server's 'connect' event): the event loop keeps a
 // weak_ptr and every listener runs on the loop thread.
+//
+// All OS access is via core::socket_ops / core::descriptor / core::poller
+// (SRS-008): this header names no sockaddr, no errno, no poll flags.
 
-#include <cerrno>
-#include <cstdint>
-#include <cstring>
+#include <cstddef>
 #include <memory>
 #include <mutex>
 #include <span>
 #include <string>
+#include <system_error>
 #include <utility>
-
-#include <netinet/in.h>
-#include <poll.h>
-#include <sys/socket.h>
-#include <sys/types.h>
 
 #include <lambdatech/networking/core/address.hpp>
 #include <lambdatech/networking/core/buffer.hpp>
+#include <lambdatech/networking/core/descriptor.hpp>
 #include <lambdatech/networking/core/event.hpp>
 #include <lambdatech/networking/core/event_loop.hpp>
-#include <lambdatech/networking/core/native.hpp>
+#include <lambdatech/networking/core/poller.hpp>
+#include <lambdatech/networking/core/resolver.hpp>
+#include <lambdatech/networking/core/socket_ops.hpp>
 #include <lambdatech/networking/core/thread_pool.hpp>
-#include <lambdatech/networking/core/descriptor.hpp>
 
 namespace lambdatech::networking::protocol::tcp {
 
 namespace core = lambdatech::networking::core;
-namespace native = lambdatech::networking::core::native;
+namespace sock = lambdatech::networking::core::socket_ops;
+using core::poller::interest;
 
 class server;
 
@@ -60,8 +60,7 @@ public:
     return std::shared_ptr<socket>(new socket(loop));
   }
 
-  // ~socket() { native::close_fd(desc); }
-  ~socket() { core::descriptor::close(desc); }
+  ~socket() { core::descriptor::close(desc_); }
 
   socket(const socket &) = delete;
   socket &operator=(const socket &) = delete;
@@ -79,7 +78,7 @@ public:
   void connect(std::uint16_t port, std::string host) {
     auto self = shared_from_this();
     core::thread_pool::instance().submit([self, host = std::move(host), port] {
-      auto addrs = core::resolve(host, port, /*datagram=*/false);
+      auto addrs = core::resolver::resolve(host, port, /*datagram=*/false);
       self->loop_.defer([self, addrs] {
         if (addrs.empty()) {
           self->fail("ENOTFOUND: getaddrinfo returned no results");
@@ -106,7 +105,7 @@ public:
     }
     bool buffered = out_offset_ < outbuf_.size();
     if (buffered) {
-      loop_.modify(desc, POLLIN | POLLOUT);
+      loop_.modify(desc_, interest::read | interest::write);
     }
     return !buffered;
   }
@@ -116,7 +115,7 @@ public:
     std::unique_lock lock(mutex_);
     ended_ = true;
     if (state_ == state::open && out_offset_ >= outbuf_.size()) {
-      ::shutdown(desc, SHUT_WR);
+      sock::shutdown(desc_, sock::shut::write);
     }
   }
 
@@ -134,52 +133,53 @@ private:
 
   explicit socket(core::event_loop &loop) : loop_(loop) {}
 
-  // Adopt an already-connected fd (used by tcp::server).
-  socket(core::event_loop &loop, int fd, core::socket_address peer)
-      : loop_(loop), desc(fd), state_(state::open), peer_(std::move(peer)) {}
+  // Adopt an already-connected descriptor (used by tcp::server).
+  socket(core::event_loop &loop, core::descriptor::state d, core::socket_address peer)
+      : loop_(loop), desc_(std::move(d)), state_(state::open), peer_(std::move(peer)) {}
 
   void begin_reading() {
     auto weak = weak_from_this();
-    loop_.watch(desc, POLLIN, [weak](short revents) {
+    loop_.watch(desc_, interest::read, [weak](core::poller::ready r) {
       if (auto self = weak.lock()) {
-        self->on_io(revents);
+        self->on_io(r);
       }
     });
   }
 
   void start_connect(const core::socket_address &addr) {
-    int fd = ::socket(addr.family == AF_INET6 ? AF_INET6 : AF_INET, SOCK_STREAM, 0);
-    if (fd < 0 || !native::set_nonblocking(fd)) {
-      native::close_fd(fd);
-      fail(native::last_error("socket"));
+    auto opened = sock::open(addr.is_inet6() ? sock::domain::inet6 : sock::domain::inet, sock::transport::stream);
+    if (!opened) {
+      fail(sock::describe(opened.error, "socket"));
+      return;
+    }
+    core::descriptor::state d = std::move(opened.handle);
+    if (std::errc nb = sock::set_nonblocking(d); nb != std::errc{}) {
+      fail(sock::describe(nb, "socket"));
       return;
     }
 
-    socklen_t len = 0;
-    sockaddr_storage ss = addr.to_sockaddr(len);
-    int rc = ::connect(fd, reinterpret_cast<sockaddr *>(&ss), len);
-    if (rc != 0 && errno != EINPROGRESS) {
-      native::close_fd(fd);
-      fail(native::last_error("connect"));
+    std::errc ec = sock::connect(d, addr);
+    if (ec != std::errc{} && ec != std::errc::operation_in_progress) {
+      fail(sock::describe(ec, "connect"));
       return;
     }
 
     {
       std::unique_lock lock(mutex_);
-      desc = fd;
+      desc_ = std::move(d);
       state_ = state::connecting;
       peer_ = addr;
     }
 
     auto weak = weak_from_this();
-    loop_.watch(desc, POLLOUT, [weak](short revents) {
+    loop_.watch(desc_, interest::write, [weak](core::poller::ready r) {
       if (auto self = weak.lock()) {
-        self->on_io(revents);
+        self->on_io(r);
       }
     });
   }
 
-  void on_io(short revents) {
+  void on_io(core::poller::ready r) {
     state current;
     {
       std::unique_lock lock(mutex_);
@@ -187,20 +187,20 @@ private:
     }
 
     if (current == state::connecting) {
-      int err = native::socket_error(desc);
-      if (err != 0) {
-        fail(std::string("connect: ") + std::strerror(err));
+      std::errc err = sock::pending_error(desc_);
+      if (err != std::errc{}) {
+        fail(sock::describe(err, "connect"));
         return;
       }
       {
         std::unique_lock lock(mutex_);
         state_ = state::open;
       }
-      loop_.modify(desc, POLLIN);
+      loop_.modify(desc_, interest::read);
       connect_.emit();
       std::unique_lock lock(mutex_);
       if (out_offset_ < outbuf_.size()) {
-        loop_.modify(desc, POLLIN | POLLOUT);
+        loop_.modify(desc_, interest::read | interest::write);
       }
       return;
     }
@@ -209,7 +209,7 @@ private:
       return;
     }
 
-    if (revents & POLLOUT) {
+    if (r.writable) {
       bool drained;
       {
         std::unique_lock lock(mutex_);
@@ -217,16 +217,16 @@ private:
         drained = out_offset_ >= outbuf_.size();
       }
       if (drained) {
-        loop_.modify(desc, POLLIN);
+        loop_.modify(desc_, interest::read);
         drain_.emit();
         std::unique_lock lock(mutex_);
         if (ended_) {
-          ::shutdown(desc, SHUT_WR);
+          sock::shutdown(desc_, sock::shut::write);
         }
       }
     }
 
-    if (revents & (POLLIN | POLLHUP)) {
+    if (r.readable || r.hangup) {
       drain_input();
     }
   }
@@ -234,33 +234,25 @@ private:
   void drain_input() {
     std::byte tmp[65536];
     while (true) {
-      ssize_t got = ::recv(desc, tmp, sizeof(tmp), 0);
-      if (got > 0) {
-        data_.emit(core::make_buffer(std::span<const std::byte>(tmp, static_cast<std::size_t>(got))));
+      sock::transfer got = sock::recv(desc_, std::span<std::byte>(tmp, sizeof(tmp)));
+      if (got.count > 0) {
+        data_.emit(core::make_buffer(
+            std::span<const std::byte>(tmp, static_cast<std::size_t>(got.count))));
         continue;
       }
-      if (got == 0) {
+      if (got.count == 0) {
         end_.emit();
-        bool half;
-        {
-          std::unique_lock lock(mutex_);
-          half = ended_;
-        }
-        if (half) {
-          close_with(std::string{});
-        } else {
-          // default allowHalfOpen=false: close our side too
-          close_with(std::string{});
-        }
+        // default allowHalfOpen=false: close our side too
+        close_with(std::string{});
         return;
       }
-      if (errno == EAGAIN || errno == EWOULDBLOCK) {
+      if (core::would_block(got.error)) {
         return;
       }
-      if (errno == EINTR) {
+      if (got.error == std::errc::interrupted) {
         continue;
       }
-      fail(native::last_error("recv"));
+      fail(sock::describe(got.error, "recv"));
       return;
     }
   }
@@ -269,19 +261,20 @@ private:
   // `lock` on mutex_.
   void pump_output(std::unique_lock<std::mutex> &lock) {
     while (out_offset_ < outbuf_.size()) {
-      ssize_t sent = ::send(desc, outbuf_.data() + out_offset_, outbuf_.size() - out_offset_, MSG_NOSIGNAL);
-      if (sent > 0) {
-        out_offset_ += static_cast<std::size_t>(sent);
+      sock::transfer sent = sock::send(
+          desc_, std::span<const std::byte>(outbuf_.data() + out_offset_, outbuf_.size() - out_offset_));
+      if (sent.count > 0) {
+        out_offset_ += static_cast<std::size_t>(sent.count);
         continue;
       }
-      if (sent < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+      if (sent.count < 0 && core::would_block(sent.error)) {
         return;
       }
-      if (sent < 0 && errno == EINTR) {
+      if (sent.count < 0 && sent.error == std::errc::interrupted) {
         continue;
       }
       lock.unlock();
-      fail(native::last_error("send"));
+      fail(sock::describe(sent.error, "send"));
       lock.lock();
       return;
     }
@@ -298,24 +291,23 @@ private:
     bool was_live;
     {
       std::unique_lock lock(mutex_);
-      was_live = state_ != state::closed && descriptor::valid(desc);
+      was_live = state_ != state::closed && core::descriptor::valid(desc_);
       state_ = state::closed;
     }
     if (!was_live) {
       return;
     }
-    loop_.unwatch(desc);
+    loop_.unwatch(desc_);
     {
       std::unique_lock lock(mutex_);
-      // native::close_fd(descriptor);
-      descriptor::close(desc);
+      core::descriptor::close(desc_);
     }
     close_.emit();
   }
 
   core::event_loop &loop_;
   mutable std::mutex mutex_;
-  tcp::descriptor::state desc;
+  core::descriptor::state desc_;
   state state_ = state::idle;
   core::socket_address peer_;
 

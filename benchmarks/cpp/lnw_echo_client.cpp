@@ -57,7 +57,7 @@ int run_tcp(run_state &st) {
   const int P = st.o.payload;
 
   struct conn {
-    std::shared_ptr<tcp::client> sock;
+    std::shared_ptr<tcp::socket> sock;
     std::vector<std::byte> in;
   };
   auto conns = std::make_shared<std::vector<conn>>(st.o.connections);
@@ -69,7 +69,7 @@ int run_tcp(run_state &st) {
 
   for (int i = 0; i < st.o.connections; ++i) {
     conn &c = (*conns)[i];
-    c.sock = tcp::client::create(loop);
+    c.sock = tcp::socket::create(loop);
     conn *cp = &c;
     c.sock->on_connect() += [&st, cp, send_one] {
       for (int k = 0; k < st.o.pipeline; ++k) {

@@ -8,6 +8,14 @@ weight: 40
 Implemented in
 [core/event_loop.hpp](../../../../include/lambdatech/networking/core/event_loop.hpp).
 
+> **Superseded in part by [SRS-008](../srs-008-platform-backend-isolation/).**
+> The `poll(2)` cycle and the wake `eventfd` now live behind `core::poller`;
+> `event_loop` holds one `poller::state` and calls `poller::wait` /
+> `poller::interrupt`. The watch API takes `poller::interest` instead of a
+> `short` mask and the `io_callback` receives a `poller::ready` struct instead
+> of `short revents`. The ordering, threading, and lifecycle guarantees below
+> are unchanged.
+
 ### REQ-4.1 — one task, one poll cycle
 
 `core::event_loop` owns one `core::task`. Each iteration builds a `pollfd`

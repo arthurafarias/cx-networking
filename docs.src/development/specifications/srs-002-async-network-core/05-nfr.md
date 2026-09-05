@@ -13,9 +13,10 @@ The entire `core` runtime is headers under
 
 ### NFR-2 — Linux/BSD
 
-`event_loop` uses `poll(2)` and `eventfd(2)`. A `kqueue` fallback for the
-BSDs and an `io_uring` backend are future work (M4); the public API is
-written to not leak `poll` specifics.
+The `posix` `core::poller` backend uses `poll(2)` and `eventfd(2)`. A
+`kqueue` fallback for the BSDs and an `io_uring` / `epoll` backend are future
+work ([SRS-008](../srs-008-platform-backend-isolation/) M4–M5); since SRS-008
+`event_loop` names `core::poller` only and leaks no `poll` specifics.
 
 ### NFR-3 — no busy-waiting
 

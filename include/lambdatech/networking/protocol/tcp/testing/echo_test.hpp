@@ -26,19 +26,19 @@ namespace tcp = lambdatech::networking::protocol::tcp;
 
 struct tcp_echo_test : public test_group {
   tcp_echo_test()
-      : test_group("tcp::client+server",
+      : test_group("tcp::socket+server",
                    {
                        {"a client round-trips a payload through an echo server",
                         [](test_context &ctx) {
                           core::event_loop loop;
 
                           auto srv = tcp::server::create(loop);
-                          auto cli = tcp::client::create(loop);
+                          auto cli = tcp::socket::create(loop);
 
                           std::promise<std::string> echoed;
                           auto fut = echoed.get_future();
 
-                          srv->on_connect() += [](const std::shared_ptr<tcp::client> conn) {
+                          srv->on_connect() += [](const std::shared_ptr<tcp::socket> conn) {
                             conn->on_data() += [conn](const core::buffer &chunk) { conn->write(chunk); };
                           };
                           srv->on_listening() += [&] {
@@ -65,12 +65,12 @@ struct tcp_echo_test : public test_group {
                         [](test_context &ctx) {
                           core::event_loop loop;
                           auto srv = tcp::server::create(loop);
-                          auto cli = tcp::client::create(loop);
+                          auto cli = tcp::socket::create(loop);
 
                           std::promise<std::string> peer;
                           auto fut = peer.get_future();
 
-                          srv->on_connect() += [&](const std::shared_ptr<tcp::client> conn) {
+                          srv->on_connect() += [&](const std::shared_ptr<tcp::socket> conn) {
                             peer.set_value(conn->remote_address().address);
                           };
                           srv->on_listening() += [&] { cli->connect(srv->address().port, "127.0.0.1"); };

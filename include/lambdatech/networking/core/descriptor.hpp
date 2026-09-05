@@ -8,138 +8,57 @@
 
 #pragma once
 
-// lambdatech::networking::protocol::core::client - a non-blocking TCP
-// connection modeled on Node.js's net.Socket. Events (subscribe with
-// on["name"] += listener):
-//
-//   connect   the connection is established
-//   data      a chunk arrived                (core::buffer)
-//   drain     the write buffer emptied
-//   end       the peer half-closed (FIN)
-//   error     a fatal error                  (std::string)
-//   close     the socket is fully closed
-//
-// Always hold a client through std::shared_ptr (use core::client::create or
-// take one from core::server's 'connection' event): the event loop keeps a
-// weak_ptr and every listener runs on the loop thread.
+// core::descriptor - the façade over one owned OS handle and its raw I/O
+// (SRS-008 §3). Selects a backend from core/config.hpp; every consumer names
+// only this header. `descriptor::state` is a move-only RAII owner; raw use is
+// always spelled descriptor::native(s).
 
-#include <cerrno>
-#include <cstdint>
-#include <cstring>
-#include <memory>
-#include <mutex>
+#include <concepts>
+#include <cstddef>
 #include <span>
-#include <string>
-#include <utility>
+#include <system_error>
 
-#include <netinet/in.h>
-#include <poll.h>
-#include <sys/socket.h>
-#include <sys/types.h>
+#include <lambdatech/networking/core/config.hpp>
+#include <lambdatech/networking/core/io_result.hpp>
 
-#include <lambdatech/networking/core/address.hpp>
-#include <lambdatech/networking/core/buffer.hpp>
-#include <lambdatech/networking/core/event.hpp>
-#include <lambdatech/networking/core/native.hpp>
-#include <lambdatech/networking/core/thread_pool.hpp>
+#if LNW_NET_BACKEND_POSIX
+#  include <lambdatech/networking/core/impl/posix/descriptor.hpp>
+#elif LNW_NET_BACKEND_STANDALONE
+#  include <lambdatech/networking/core/impl/standalone/descriptor.hpp>
+#endif
 
 namespace lambdatech::networking::core::descriptor {
 
-namespace impl::posix {
-struct state {
-  int fd = -1;
-};
-} // namespace impl::posix
+#if LNW_NET_BACKEND_POSIX
+namespace backend = impl::posix;
+#elif LNW_NET_BACKEND_STANDALONE
+namespace backend = impl::standalone;
+#endif
 
-namespace impl::standalone {
-struct state {
-  int fd = -1;
-};
-} // namespace impl::standalone
+using native_handle = backend::native_handle;
+using state = backend::state;
+inline constexpr native_handle invalid_handle = backend::invalid_handle;
+using core::would_block;
 
-namespace impl {
-namespace current = impl::posix;
-};
+inline state adopt(native_handle h) { return backend::adopt(h); }
+inline io_result read(state &d, std::span<std::byte> b) { return backend::read(d, b); }
+inline io_result write(state &d, std::span<const std::byte> b) { return backend::write(d, b); }
+inline void close(state &d) { backend::close(d); }
+inline bool valid(const state &d) { return backend::valid(d); }
+inline native_handle native(const state &d) { return backend::native(d); }
+inline native_handle release(state &d) { return backend::release(d); }
 
-struct state {
-  impl::current::state impl;
-};
+// --- backend contract (SRS-008 §2.3) --------------------------------------
 
-namespace impl::posix {
+static_assert(
+    requires(state s, const state cs, native_handle h, std::span<std::byte> w, std::span<const std::byte> r) {
+      { backend::adopt(h) } -> std::same_as<state>;
+      { backend::read(s, w) } -> std::same_as<io_result>;
+      { backend::write(s, r) } -> std::same_as<io_result>;
+      { backend::close(s) };
+      { backend::valid(cs) } -> std::same_as<bool>;
+      { backend::native(cs) } -> std::same_as<native_handle>;
+    },
+    "selected core::descriptor backend is incomplete (SRS-008 §2.3)");
 
-inline descriptor::state create() { return descriptor::state(); }
-
-}; // namespace impl::posix
-
-namespace impl::posix {
-
-inline int write(descriptor::state &desc, void *buf, size_t n) { return {}; }
-
-}; // namespace impl::posix
-
-namespace impl::posix {
-
-inline int read(descriptor::state &desc, void *buf, size_t n) {
-  return ::read(desc.impl.fd, buf, n);
-}
-
-}; // namespace impl::posix
-
-namespace impl::posix {
-
-inline int close(descriptor::state &desc) {
-  return ::close(desc.impl.fd);
-}
-
-};
-
-namespace impl::posix {
-
-inline bool valid(descriptor::state &desc) {
-  return desc.impl.fd >= 0;
-}
-
-}; // namespace impl::posix
-
-namespace impl::standalone {
-
-inline descriptor::state create() { return descriptor::state(); }
-
-}; // namespace impl::standalone
-
-namespace impl::standalone {
-
-inline int write(descriptor::state &desc, void *buf, size_t n) { return {}; }
-
-}; // namespace impl::standalone
-
-namespace impl::standalone {
-
-inline int read(descriptor::state &desc, void *buf, size_t n) { return {}; }
-
-}; // namespace impl::standalone
-
-namespace impl::standalone {
-
-inline int close(descriptor::state &desc) { return {}; }
-
-}; // namespace impl::standalone
-inline descriptor::state create() { return impl::current::create(); }
-
-inline int read(descriptor::state &desc, void *buf, size_t n) {
-  return impl::current::read(desc, buf, n);
-}
-
-inline int write(descriptor::state &desc, void *buf, size_t n) {
-  return impl::current::write(desc, buf, n);
-}
-
-inline int close(descriptor::state &desc) {
-  return impl::current::close(desc);
-}
-
-inline int valid(descriptor::state &desc) {
-  return impl::current::valid(desc);
-}
-
-} // namespace lambdatech::networking::protocol::core::descriptor
+} // namespace lambdatech::networking::core::descriptor

@@ -52,7 +52,7 @@ int main(int argc, char **argv) {
   } else {
     srv = tcp::server::create(loop);
     auto *raw = srv.get();
-    srv->on_connect() += [](const std::shared_ptr<tcp::client> conn) {
+    srv->on_connect() += [](const std::shared_ptr<tcp::socket> conn) {
       conn->on_data() += [conn](const core::buffer &chunk) { conn->write(chunk); };
     };
     srv->on_listening() += [raw] {
